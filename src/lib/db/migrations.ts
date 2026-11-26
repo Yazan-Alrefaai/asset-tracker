@@ -1,0 +1,89 @@
+import type { Db } from './types';
+
+const NOW = `(strftime('%Y-%m-%dT%H:%M:%SZ','now'))`;
+
+/**
+ * Schema migrations. Each entry is one version; never edit an entry that has shipped —
+ * add a new one instead. The current version is kept in `PRAGMA user_version`.
+ */
+export const MIGRATIONS: string[][] = [
+  [
+    `CREATE TABLE portfolios (
+      id INTEGER PRIMARY KEY,
+      name TEXT NOT NULL DEFAULT '',
+      kind TEXT NOT NULL DEFAULT 'personal' CHECK (kind IN ('personal','business','other')),
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT ${NOW}
+    )`,
+    `CREATE TABLE assets (
+      id INTEGER PRIMARY KEY,
+      portfolio_id INTEGER NOT NULL REFERENCES portfolios(id) ON DELETE CASCADE,
+      type TEXT NOT NULL CHECK (type IN ('gold','silver','crypto','stock','cash','manual')),
+      name TEXT NOT NULL,
+      symbol TEXT NOT NULL DEFAULT '',
+      unit TEXT NOT NULL DEFAULT 'unit',
+      unit_grams REAL,
+      purity REAL,
+      form TEXT NOT NULL DEFAULT '',
+      price_currency TEXT,
+      manual_price REAL,
+      use_manual_price INTEGER NOT NULL DEFAULT 0,
+      location TEXT NOT NULL DEFAULT '',
+      notes TEXT NOT NULL DEFAULT '',
+      archived INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT ${NOW}
+    )`,
+    `CREATE INDEX idx_assets_portfolio ON assets(portfolio_id)`,
+    `CREATE TABLE transactions (
+      id INTEGER PRIMARY KEY,
+      asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+      kind TEXT NOT NULL CHECK (kind IN ('buy','sell')),
+      date TEXT NOT NULL,
+      quantity REAL NOT NULL CHECK (quantity > 0),
+      price REAL NOT NULL CHECK (price >= 0),
+      currency TEXT NOT NULL,
+      fees REAL NOT NULL DEFAULT 0,
+      usd_rate REAL NOT NULL DEFAULT 1 CHECK (usd_rate > 0),
+      syp_rate REAL,
+      notes TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT ${NOW}
+    )`,
+    `CREATE INDEX idx_tx_asset ON transactions(asset_id, date)`,
+    `CREATE TABLE quotes (
+      key TEXT PRIMARY KEY,
+      price REAL NOT NULL,
+      bid REAL,
+      ask REAL,
+      currency TEXT NOT NULL,
+      source TEXT NOT NULL,
+      as_of TEXT,
+      fetched_at TEXT NOT NULL,
+      extra TEXT
+    )`,
+    `CREATE TABLE snapshots (
+      date TEXT NOT NULL,
+      portfolio_id INTEGER NOT NULL,
+      value_usd REAL NOT NULL,
+      cost_usd REAL NOT NULL,
+      value_syp REAL,
+      PRIMARY KEY (date, portfolio_id)
+    )`,
+    `CREATE TABLE settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    )`,
+    `INSERT INTO portfolios (name, kind, sort_order) VALUES ('', 'personal', 0), ('', 'business', 1)`,
+  ],
+];
+
+export async function migrate(db: Db): Promise<number> {
+  const rows = await db.select<{ user_version: number }>('PRAGMA user_version');
+  const current = Number(rows[0]?.user_version ?? 0);
+  for (let v = current; v < MIGRATIONS.length; v++) {
+    await db.batch([
+      ...MIGRATIONS[v].map((sql) => ({ sql })),
+      { sql: `PRAGMA user_version = ${v + 1}` },
+    ]);
+  }
+  return MIGRATIONS.length;
+}

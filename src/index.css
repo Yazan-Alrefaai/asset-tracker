@@ -1,0 +1,100 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Theme tokens. Light is the default; `.dark` on <html> switches to dark. */
+:root {
+  color-scheme: light;
+  --page: 246 245 241;
+  --surface: 255 255 255;
+  --surface-2: 242 240 234;
+  --line: 228 225 216;
+  --ink: 20 19 15;
+  --ink-2: 82 81 78;
+  --muted: 120 118 111;
+  --accent: 214 164 43;
+  --accent-ink: 138 98 8;
+  --on-accent: 27 21 5;
+  --pos: 0 99 0;
+  --neg: 208 59 59;
+  --warn: 180 120 0;
+
+  /* Chart tokens (validated categorical palette, fixed slot order) */
+  --chart-grid: #e8e6df;
+  --chart-axis: #898781;
+  --s1: #2a78d6; /* stocks  */
+  --s2: #eb6834; /* crypto  */
+  --s3: #1baf7a; /* silver  */
+  --s4: #eda100; /* gold    */
+  --s5: #e87ba4; /* other   */
+  --s6: #008300; /* cash    */
+}
+
+.dark {
+  color-scheme: dark;
+  --page: 11 15 20;
+  --surface: 20 26 34;
+  --surface-2: 28 36 48;
+  --line: 39 49 64;
+  --ink: 236 239 243;
+  --ink-2: 195 200 208;
+  --muted: 148 156 168;
+  --accent: 226 184 76;
+  --accent-ink: 233 198 106;
+  --on-accent: 23 18 10;
+  --pos: 12 163 12;
+  --neg: 224 82 82;
+  --warn: 250 178 25;
+
+  --chart-grid: #273140;
+  --chart-axis: #898781;
+  --s1: #3987e5;
+  --s2: #d95926;
+  --s3: #199e70;
+  --s4: #c98500;
+  --s5: #d55181;
+  --s6: #0ca30c;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background: rgb(var(--page));
+  color: rgb(var(--ink));
+  font-family: 'IBM Plex Sans Arabic', system-ui, -apple-system, 'Segoe UI', Tahoma, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Aligned numbers in tables and inputs */
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Numbers and codes always read left-to-right, even inside Arabic text */
+.ltr {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+::selection {
+  background: rgb(var(--accent) / 0.35);
+}
+
+/* Thin scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--line)) transparent;
+}
+
+input[type='date']::-webkit-calendar-picker-indicator {
+  opacity: 0.6;
+  cursor: pointer;
+}
+.dark input[type='date']::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+}
