@@ -1,8 +1,11 @@
 import type { Db, SqlValue, Statement } from './types';
 import type {
+  Alert,
+  AlertCondition,
   Asset,
   AssetType,
   MetalForm,
+  NewAlert,
   NewAsset,
   NewTx,
   Portfolio,
@@ -93,6 +96,22 @@ export function toSnapshot(r: Row): Snapshot {
   };
 }
 
+export function toAlert(r: Row): Alert {
+  return {
+    id: num(r.id),
+    target: str(r.target),
+    condition: str(r.condition) as AlertCondition,
+    value: num(r.value),
+    repeat: num(r.repeat) === 1,
+    active: num(r.active) === 1,
+    state: str(r.state) === 'fired' ? 'fired' : 'armed',
+    note: str(r.note),
+    lastTriggeredAt: r.last_triggered_at == null ? null : str(r.last_triggered_at),
+    lastValue: numOrNull(r.last_value),
+    createdAt: str(r.created_at),
+  };
+}
+
 export interface AllData {
   portfolios: Portfolio[];
   assets: Asset[];
@@ -100,6 +119,7 @@ export interface AllData {
   quotes: Quote[];
   settingsRows: { key: string; value: string }[];
   snapshots: Snapshot[];
+  alerts: Alert[];
 }
 
 export async function loadAll(db: Db): Promise<AllData> {
@@ -109,6 +129,7 @@ export async function loadAll(db: Db): Promise<AllData> {
   const quotes = await db.select('SELECT * FROM quotes');
   const settingsRows = await db.select<{ key: string; value: string }>('SELECT key, value FROM settings');
   const snapshots = await db.select('SELECT * FROM snapshots ORDER BY date');
+  const alerts = await db.select('SELECT * FROM alerts ORDER BY id');
   return {
     portfolios: portfolios.map(toPortfolio),
     assets: assets.map(toAsset),
@@ -116,7 +137,56 @@ export async function loadAll(db: Db): Promise<AllData> {
     quotes: quotes.map(toQuote),
     settingsRows,
     snapshots: snapshots.map(toSnapshot),
+    alerts: alerts.map(toAlert),
   };
+}
+
+// ---------- alerts ----------
+
+export async function insertAlert(db: Db, a: NewAlert): Promise<number> {
+  const r = await db.execute('INSERT INTO alerts (target, condition, value, repeat, note) VALUES (?, ?, ?, ?, ?)', [
+    a.target,
+    a.condition,
+    a.value,
+    a.repeat ? 1 : 0,
+    a.note,
+  ]);
+  return r.lastInsertId;
+}
+
+/** Editing an alert re-arms and re-activates it. */
+export async function updateAlert(db: Db, id: number, a: NewAlert): Promise<void> {
+  await db.execute(
+    `UPDATE alerts SET target = ?, condition = ?, value = ?, repeat = ?, note = ?, active = 1, state = 'armed' WHERE id = ?`,
+    [a.target, a.condition, a.value, a.repeat ? 1 : 0, a.note, id],
+  );
+}
+
+export async function setAlertActive(db: Db, id: number, active: boolean): Promise<void> {
+  await db.execute(`UPDATE alerts SET active = ?, state = 'armed' WHERE id = ?`, [active ? 1 : 0, id]);
+}
+
+export async function deleteAlert(db: Db, id: number): Promise<void> {
+  await db.execute('DELETE FROM alerts WHERE id = ?', [id]);
+}
+
+export function alertStateUpdate(a: Pick<Alert, 'id' | 'active' | 'state' | 'lastTriggeredAt' | 'lastValue'>): Statement {
+  return {
+    sql: 'UPDATE alerts SET active = ?, state = ?, last_triggered_at = ?, last_value = ? WHERE id = ?',
+    params: [a.active ? 1 : 0, a.state, a.lastTriggeredAt, a.lastValue, a.id],
+  };
+}
+
+// ---------- widget windows (one settings row each, so windows never overwrite each other) ----------
+
+export const WIDGET_KEY_PREFIX = 'widget:';
+
+export async function loadWidgetRows(db: Db): Promise<{ key: string; value: string }[]> {
+  return db.select<{ key: string; value: string }>(`SELECT key, value FROM settings WHERE key LIKE 'widget:%'`);
+}
+
+export async function deleteSetting(db: Db, key: string): Promise<void> {
+  await db.execute('DELETE FROM settings WHERE key = ?', [key]);
 }
 
 // ---------- portfolios ----------

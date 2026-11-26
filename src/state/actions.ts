@@ -7,42 +7,93 @@ import * as repo from '../lib/db/repo';
 import type { NewAsset, NewTx, Portfolio, Snapshot } from '../lib/model';
 import { isTauri } from '../lib/platform';
 import { parseSettings, writeUiCache, type Settings } from '../lib/settings';
+import { scheduleAlertCheck } from './alerts';
 import { groupTxs } from './derived';
 import { refreshPrices, startPriceEngine } from './prices';
 import { errorText, type PriceGroup, useStore } from './store';
+import { announceChange, onChange, onTrayRefresh } from './sync';
+import { watchTray } from './tray';
+import { reopenWidgets } from './widgets';
 
 let booting: Promise<void> | null = null;
 
-/** Opens the database, runs migrations, loads everything and starts the price engine (once). */
+/** Main window: opens the database, runs migrations, loads everything and starts the engines (once). */
 export function boot(): Promise<void> {
   booting ??= doBoot();
   return booting;
 }
 
+/** Widget windows: read-only view of the same database, reloaded when the main window announces changes. */
+export function bootWidget(): Promise<void> {
+  booting ??= doBootWidget();
+  return booting;
+}
+
+async function loadEverything(): Promise<repo.AllData> {
+  const all = await repo.loadAll(await getDb());
+  useStore.setState({
+    portfolios: all.portfolios,
+    assets: all.assets,
+    txs: all.txs,
+    snapshots: all.snapshots,
+    alerts: all.alerts,
+    quotes: Object.fromEntries(all.quotes.map((q) => [q.key, q])),
+  });
+  return all;
+}
+
+/** Runs after every successful price update. */
+function afterPrices(): void {
+  scheduleSnapshots();
+  scheduleAlertCheck();
+  announceChange();
+}
+
 async function doBoot(): Promise<void> {
   try {
-    const db = await getDb();
-    await migrate(db);
-    const all = await repo.loadAll(db);
+    await migrate(await getDb());
+    const all = await loadEverything();
     const settings = parseSettings(all.settingsRows);
     if (!all.settingsRows.some((r) => r.key === 'language')) {
       // first start: keep the language the UI already shows
       settings.language = useStore.getState().settings.language;
     }
-    useStore.setState({
-      portfolios: all.portfolios,
-      assets: all.assets,
-      txs: all.txs,
-      snapshots: all.snapshots,
-      quotes: Object.fromEntries(all.quotes.map((q) => [q.key, q])),
-      settings,
-      ready: true,
-    });
+    useStore.setState({ settings, ready: true });
     writeUiCache(settings);
-    startPriceEngine(scheduleSnapshots);
+    startPriceEngine(afterPrices);
+    scheduleAlertCheck(3000);
+    watchTray();
+    void syncKeepInTray(settings.keepInTray);
+    void onTrayRefresh(() => refreshPrices());
+    void reopenWidgets();
     void dailyBackup();
   } catch (e) {
     useStore.setState({ bootError: errorText(e) });
+  }
+}
+
+async function doBootWidget(): Promise<void> {
+  try {
+    const all = await loadEverything();
+    useStore.setState({ settings: parseSettings(all.settingsRows), ready: true });
+    await onChange(async () => {
+      const again = await loadEverything();
+      useStore.setState({ settings: parseSettings(again.settingsRows) });
+    });
+    // Browser demo: popups have their own copy of the data, so refresh it now and then.
+    if (!isTauri) setInterval(() => window.location.reload(), 60_000);
+  } catch (e) {
+    useStore.setState({ bootError: errorText(e) });
+  }
+}
+
+async function syncKeepInTray(value: boolean): Promise<void> {
+  if (!isTauri) return;
+  try {
+    const { invoke } = await import('@tauri-apps/api/core');
+    await invoke('set_keep_in_tray', { value });
+  } catch {
+    /* older builds without the command */
   }
 }
 
@@ -53,8 +104,11 @@ export async function reloadData(): Promise<void> {
     assets: all.assets,
     txs: all.txs,
     snapshots: all.snapshots,
+    alerts: all.alerts,
   });
   scheduleSnapshots();
+  scheduleAlertCheck();
+  announceChange();
 }
 
 export async function saveSettings(patch: Partial<Settings>): Promise<void> {
@@ -67,8 +121,13 @@ export async function saveSettings(patch: Partial<Settings>): Promise<void> {
   );
   useStore.setState((s) => ({ settings: { ...s.settings, ...patch } }));
   writeUiCache(useStore.getState().settings);
+  announceChange();
+  if ('keepInTray' in patch) void syncKeepInTray(!!patch.keepInTray);
   if ('sypCity' in patch) refreshPrices(['syp']);
-  if ('sypSource' in patch || 'sypManualBuy' in patch || 'metalPricing' in patch) scheduleSnapshots();
+  if ('sypSource' in patch || 'sypManualBuy' in patch || 'metalPricing' in patch) {
+    scheduleSnapshots();
+    scheduleAlertCheck();
+  }
 }
 
 // ---------- portfolios ----------

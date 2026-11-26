@@ -22,8 +22,21 @@ pub struct DbState {
     path: PathBuf,
 }
 
+impl DbState {
+    /// Raw JSON value of a saved setting (None before the first run created the table).
+    pub fn setting(&self, key: &str) -> Option<String> {
+        let conn = self.conn.lock().ok()?;
+        conn.query_row("SELECT value FROM settings WHERE key = ?1", [key], |r| r.get::<_, String>(0))
+            .ok()
+    }
+}
+
 pub fn open(app: &AppHandle) -> Result<DbState, Box<dyn std::error::Error>> {
-    let dir = app.path().app_data_dir()?;
+    // ASSET_TRACKER_DATA_DIR lets developers test with a throw-away database.
+    let dir = match std::env::var_os("ASSET_TRACKER_DATA_DIR") {
+        Some(d) if !d.is_empty() => PathBuf::from(d),
+        _ => app.path().app_data_dir()?,
+    };
     std::fs::create_dir_all(&dir)?;
     let path = dir.join(DB_FILE);
     let conn = Connection::open(&path)?;

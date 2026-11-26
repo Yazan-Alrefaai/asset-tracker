@@ -1,4 +1,5 @@
-import { DatabaseBackup, Download, FileSpreadsheet, FolderOpen, Upload } from 'lucide-react';
+import { DatabaseBackup, Download, FileSpreadsheet, FolderOpen, PictureInPicture2, Upload } from 'lucide-react';
+import { openWidget } from '../state/widgets';
 import { useEffect, useState } from 'react';
 import { PageHeader } from '../components/Layout';
 import { useFmt } from '../components/Money';
@@ -8,13 +9,13 @@ import { makeBackup, parseBackup, restoreBackup, transactionsCsv } from '../lib/
 import { todayLocal } from '../lib/dates';
 import { getDb } from '../lib/db';
 import { isTauri } from '../lib/platform';
-import type { Language, Theme } from '../lib/settings';
+import { TRAY_ITEMS, type Language, type Theme } from '../lib/settings';
 import { backupNow, reloadData, saveSettings } from '../state/actions';
 import { portfolioName } from '../state/derived';
 import { getDbInfo, openDataFolder, openTextFile, saveTextFile, type DbInfo } from '../state/files';
 import { errorText, toast, useStore } from '../state/store';
 
-const APP_VERSION = '0.1.0';
+const APP_VERSION = '0.2.0';
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -39,7 +40,14 @@ export function SettingsPage() {
 
   async function exportJson() {
     const st = useStore.getState();
-    const backup = makeBackup({ portfolios: st.portfolios, assets: st.assets, txs: st.txs, snapshots: st.snapshots, settings: st.settings });
+    const backup = makeBackup({
+      portfolios: st.portfolios,
+      assets: st.assets,
+      txs: st.txs,
+      snapshots: st.snapshots,
+      alerts: st.alerts,
+      settings: st.settings,
+    });
     if (await saveTextFile(`asset-tracker-backup-${todayLocal()}.json`, JSON.stringify(backup, null, 2), 'json')) toast(t.settings.exported);
   }
 
@@ -131,6 +139,47 @@ export function SettingsPage() {
           <Row label={t.settings.showOldSyp}>
             <Checkbox checked={s.showOldSyp} onChange={(v) => void saveSettings({ showOldSyp: v })} label="" />
           </Row>
+        </Card>
+
+        <Card title={t.settings.alertsSection}>
+          <Row label={t.settings.notifications}>
+            <Checkbox checked={s.notifications} onChange={(v) => void saveSettings({ notifications: v })} label="" />
+          </Row>
+          {isTauri && (
+            <div className="border-t border-line py-3">
+              <Checkbox checked={s.keepInTray} onChange={(v) => void saveSettings({ keepInTray: v })} label={t.settings.keepInTray} />
+              <p className="mt-1 ps-6 text-xs text-muted">{t.settings.keepInTrayHint}</p>
+            </div>
+          )}
+          <div className="border-t border-line pt-3">
+            <p className="text-sm text-ink">{t.settings.menuBar}</p>
+            <p className="mt-0.5 text-xs text-muted">{t.settings.menuBarHint}</p>
+            <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-2">
+              {TRAY_ITEMS.map((item) => (
+                <Checkbox
+                  key={item}
+                  checked={s.trayItems.includes(item)}
+                  onChange={(on) =>
+                    void saveSettings({
+                      trayItems: on ? TRAY_ITEMS.filter((x) => x === item || s.trayItems.includes(x)) : s.trayItems.filter((x) => x !== item),
+                    })
+                  }
+                  label={t.settings.trayItems[item]}
+                />
+              ))}
+            </div>
+          </div>
+        </Card>
+
+        <Card title={t.widgets.title} subtitle={t.widgets.hint}>
+          <div className="flex flex-wrap gap-2">
+            <Button icon={<PictureInPicture2 className="h-4 w-4" />} onClick={() => void openWidget('total', 0)}>
+              {t.widgets.total}
+            </Button>
+            <Button icon={<PictureInPicture2 className="h-4 w-4" />} onClick={() => void openWidget('prices')}>
+              {t.widgets.prices}
+            </Button>
+          </div>
         </Card>
 
         <Card title={t.settings.data} subtitle={t.settings.dataInfo}>

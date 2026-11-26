@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Asset, Portfolio, Quote, Snapshot, Tx } from '../lib/model';
+import type { Alert, Asset, Portfolio, Quote, Snapshot, Tx } from '../lib/model';
 import type { SpCity } from '../lib/prices/sptoday';
 import { DEFAULT_SETTINGS, initialLanguage, readUiCache, type Settings } from '../lib/settings';
 
@@ -28,6 +28,7 @@ export interface AppState {
   assets: Asset[];
   txs: Tx[];
   snapshots: Snapshot[];
+  alerts: Alert[];
   quotes: Record<string, Quote>;
   status: Record<PriceGroup, GroupStatus>;
   spCities: SpCity[];
@@ -51,6 +52,7 @@ export const useStore = create<AppState>(() => ({
   assets: [],
   txs: [],
   snapshots: [],
+  alerts: [],
   quotes: {},
   status: { metals: idle(), syp: idle(), crypto: idle(), stocks: idle(), fx: idle() },
   spCities: [],
@@ -61,10 +63,10 @@ export const useStore = create<AppState>(() => ({
 
 let toastSeq = 0;
 
-export function toast(text: string, kind: Toast['kind'] = 'ok'): void {
+export function toast(text: string, kind: Toast['kind'] = 'ok', ms = 4500): void {
   const id = ++toastSeq;
   useStore.setState((s) => ({ toasts: [...s.toasts, { id, text, kind }] }));
-  setTimeout(() => useStore.setState((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })), 4500);
+  setTimeout(() => useStore.setState((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })), ms);
 }
 
 export function errorText(e: unknown): string {

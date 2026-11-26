@@ -1,6 +1,10 @@
 export type Language = 'en' | 'ar';
 export type Theme = 'system' | 'light' | 'dark';
 
+/** What the menu bar / tray shows. */
+export type TrayItem = 'usd' | 'gold21' | 'gold24' | 'xau' | 'xag' | 'btc' | 'spy' | 'total';
+export const TRAY_ITEMS: TrayItem[] = ['usd', 'gold21', 'gold24', 'xau', 'xag', 'btc', 'spy', 'total'];
+
 export interface Settings {
   language: Language;
   theme: Theme;
@@ -19,6 +23,25 @@ export interface Settings {
   /** Value gold with the Syrian market price per karat, or with the world (spot) price. */
   metalPricing: 'local' | 'global';
   lastBackupDate: string | null;
+
+  /** Send system notifications when a price alert fires. */
+  notifications: boolean;
+  /** Prices shown in the menu bar (macOS) or tray tooltip (Windows). */
+  trayItems: TrayItem[];
+  /** Closing the window keeps the app running in the menu bar / tray (alerts keep working). */
+  keepInTray: boolean;
+
+  /** Zakat: nisab by 85 g of gold or 595 g of silver. */
+  zakatBasis: 'gold' | 'silver';
+  /** Zakat: count gold/silver jewelry that is worn (scholars differ). */
+  zakatIncludeJewelry: boolean;
+  /** Zakat: debts due now, deducted before the 2.5%. */
+  zakatDebts: number;
+  zakatDebtsCurrency: string;
+  /** Zakat: portfolio ids to include (null = all). */
+  zakatPortfolios: number[] | null;
+  /** Zakat: per-asset include/exclude overrides (asset id → include). */
+  zakatOverrides: Record<string, boolean>;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -33,6 +56,15 @@ export const DEFAULT_SETTINGS: Settings = {
   sypCity: 'damascus',
   metalPricing: 'local',
   lastBackupDate: null,
+  notifications: true,
+  trayItems: ['usd', 'gold21', 'btc'],
+  keepInTray: true,
+  zakatBasis: 'gold',
+  zakatIncludeJewelry: true,
+  zakatDebts: 0,
+  zakatDebtsCurrency: 'USD',
+  zakatPortfolios: null,
+  zakatOverrides: {},
 };
 
 export function initialLanguage(): Language {
@@ -43,18 +75,29 @@ export function initialLanguage(): Language {
   }
 }
 
+/** True when a stored value has the same kind of shape as the default (protects against broken rows). */
+function fits(def: unknown, v: unknown): boolean {
+  if (def === null) return v === null || typeof v === 'number' || typeof v === 'string' || Array.isArray(v);
+  if (Array.isArray(def)) return Array.isArray(v);
+  if (typeof def === 'object') return v !== null && typeof v === 'object' && !Array.isArray(v);
+  return typeof v === typeof def;
+}
+
 /** Merge stored key/value rows (JSON values) over the defaults, ignoring unknown or broken entries. */
 export function parseSettings(rows: { key: string; value: string }[]): Settings {
   const s: Settings = { ...DEFAULT_SETTINGS, language: initialLanguage() };
   const target = s as unknown as Record<string, unknown>;
+  const defaults = DEFAULT_SETTINGS as unknown as Record<string, unknown>;
   for (const { key, value } of rows) {
     if (!(key in DEFAULT_SETTINGS)) continue;
     try {
-      target[key] = JSON.parse(value);
+      const v = JSON.parse(value);
+      if (fits(defaults[key], v)) target[key] = v;
     } catch {
       /* ignore broken value */
     }
   }
+  s.trayItems = s.trayItems.filter((x) => TRAY_ITEMS.includes(x));
   return s;
 }
 

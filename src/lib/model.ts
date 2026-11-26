@@ -90,3 +90,27 @@ export interface Snapshot {
 
 export type NewAsset = Omit<Asset, 'id' | 'createdAt'>;
 export type NewTx = Omit<Tx, 'id' | 'createdAt'>;
+
+export type AlertCondition = 'above' | 'below';
+
+/**
+ * A price alert. `target` says what to watch, e.g. "metal:XAU", "sygold:21K", "syp:USD",
+ * "crypto:bitcoin", "stock:SPY", "total:USD", "total:SYP".
+ */
+export interface Alert {
+  id: number;
+  target: string;
+  condition: AlertCondition;
+  value: number;
+  /** Notify every time it crosses again (true) or only once (false). */
+  repeat: boolean;
+  active: boolean;
+  /** 'fired' = condition was met and we already notified; it re-arms when the price moves back. */
+  state: 'armed' | 'fired';
+  note: string;
+  lastTriggeredAt: string | null;
+  lastValue: number | null;
+  createdAt: string;
+}
+
+export type NewAlert = Pick<Alert, 'target' | 'condition' | 'value' | 'repeat' | 'note'>;

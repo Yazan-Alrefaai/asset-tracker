@@ -21,6 +21,13 @@ Record what you paid, see **live prices**, and see your **profit/loss in US doll
 - **Arabic and English**, right-to-left layout, dark and light themes, and a "hide numbers" button.
 - **Backups**: an automatic daily copy, JSON export/import, and CSV export for Excel.
 
+New in 0.2:
+
+- **Price alerts**: get a system notification when gold, the dollar rate, a coin, a stock or your total value goes above or below your price. Alerts can fire once or every time the price crosses.
+- **Menu bar prices** (Mac) / **tray** (Windows): e.g. `USD 152.5 · 21K 15,550 · BTC 60.9K` at the top of the screen. You choose what it shows. Closing the window keeps the app running there, so alerts keep working.
+- **Zakat calculator**: gold (85 g) or silver (595 g) nisab, optional worn jewelry, debts, and per-asset choices. Results are in USD and SYP, plus zakat in kind for gold. It is a calculator, not a fatwa.
+- **Pop-out widgets**: small always-on-top windows for your total value, live prices or one asset. They remember where you put them.
+
 ## Price sources (all free, no API key)
 
 | What | Source | Backup |
@@ -71,10 +78,9 @@ Most of the logic is TypeScript in `src/lib` (calculations, price parsers, datab
 
 ## Roadmap
 
-- Price alerts with system notifications
-- Live prices in the Mac menu bar
-- Zakat calculator (gold or silver nisab)
-- Pop-out price widgets, then real macOS desktop widgets
+- Real macOS desktop widgets (WidgetKit)
+- Price history charts for each asset
+- Optional sync between your own computers
 
 ## License
 
@@ -99,6 +105,11 @@ MIT. Contributions are welcome.
 - **محفظة شخصية ومحفظة للعمل**، كل واحدة وحدها أو معاً.
 - **عربي وإنكليزي**، من اليمين لليسار، وضع داكن وفاتح، وزر لإخفاء الأرقام.
 - **نسخ احتياطي**: نسخة تلقائية يومية، وتصدير واستيراد JSON، وتصدير CSV لبرنامج Excel.
+- **جديد في 0.2**:
+  - **تنبيهات الأسعار**: إشعار عندما يتجاوز الذهب أو سعر الدولار أو عملة رقمية أو سهم أو قيمة أصولك سعراً تختاره.
+  - **الأسعار في شريط القوائم** على الماك (وقرب الساعة على ويندوز). عند إغلاق النافذة يبقى التطبيق يعمل هناك لتستمر التنبيهات.
+  - **حاسبة الزكاة**: نصاب الذهب (85 غ) أو الفضة (595 غ)، مع خيار الحلي والديون. للتقدير فقط وليست فتوى.
+  - **نوافذ صغيرة** تبقى فوق النوافذ: القيمة الإجمالية أو الأسعار المباشرة أو أصل واحد.
 
 ### التثبيت على الماك
 

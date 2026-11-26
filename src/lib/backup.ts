@@ -1,10 +1,11 @@
 import type { Db, Statement } from './db/types';
 import { snapshotUpsert } from './db/repo';
-import type { Asset, Portfolio, Snapshot, Tx } from './model';
+import type { Alert, Asset, Portfolio, Snapshot, Tx } from './model';
 import { DEFAULT_SETTINGS, type Settings } from './settings';
 
 export const BACKUP_APP = 'asset-tracker';
-export const BACKUP_FORMAT = 1;
+/** 1 = v0.1 (no alerts), 2 = v0.2 (adds alerts). Older files can always be imported. */
+export const BACKUP_FORMAT = 2;
 
 export interface BackupFile {
   app: typeof BACKUP_APP;
@@ -14,6 +15,7 @@ export interface BackupFile {
   assets: Asset[];
   transactions: Tx[];
   snapshots: Snapshot[];
+  alerts: Alert[];
   settings: Partial<Settings>;
 }
 
@@ -22,6 +24,7 @@ export function makeBackup(data: {
   assets: Asset[];
   txs: Tx[];
   snapshots: Snapshot[];
+  alerts: Alert[];
   settings: Settings;
 }): BackupFile {
   return {
@@ -32,6 +35,7 @@ export function makeBackup(data: {
     assets: data.assets,
     transactions: data.txs,
     snapshots: data.snapshots,
+    alerts: data.alerts,
     settings: data.settings,
   };
 }
@@ -63,6 +67,7 @@ export function parseBackup(text: string): BackupFile {
     assets: b.assets,
     transactions: b.transactions,
     snapshots: Array.isArray(b.snapshots) ? b.snapshots : [],
+    alerts: Array.isArray(b.alerts) ? b.alerts : [],
     settings: b.settings && typeof b.settings === 'object' ? b.settings : {},
   };
 }
@@ -74,7 +79,27 @@ export async function restoreBackup(db: Db, b: BackupFile): Promise<void> {
     { sql: 'DELETE FROM assets' },
     { sql: 'DELETE FROM snapshots' },
     { sql: 'DELETE FROM portfolios' },
+    { sql: 'DELETE FROM alerts' },
   ];
+  for (const a of b.alerts) {
+    if (!a || !a.target || (a.condition !== 'above' && a.condition !== 'below') || !(a.value > 0)) continue;
+    st.push({
+      sql: `INSERT INTO alerts (id, target, condition, value, repeat, active, state, note, last_triggered_at, last_value)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      params: [
+        a.id,
+        a.target,
+        a.condition,
+        a.value,
+        a.repeat ? 1 : 0,
+        a.active === false ? 0 : 1,
+        a.state === 'fired' ? 'fired' : 'armed',
+        a.note ?? '',
+        a.lastTriggeredAt ?? null,
+        a.lastValue ?? null,
+      ],
+    });
+  }
   for (const p of b.portfolios) {
     st.push({
       sql: 'INSERT INTO portfolios (id, name, kind, sort_order) VALUES (?, ?, ?, ?)',

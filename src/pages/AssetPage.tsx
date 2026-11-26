@@ -1,4 +1,6 @@
-import { ArrowLeft, Pencil, Plus, Minus, Trash2, TriangleAlert } from 'lucide-react';
+import { ArrowLeft, Bell, Minus, Pencil, PictureInPicture2, Plus, Trash2, TriangleAlert } from 'lucide-react';
+import { AlertForm } from '../components/AlertForm';
+import { openWidget } from '../state/widgets';
 import { useEffect, useMemo, useState } from 'react';
 import { AssetForm } from '../components/AssetForm';
 import { AssetIcon } from '../components/AssetIcon';
@@ -39,6 +41,7 @@ export function AssetPage({ id, action }: { id: number; action?: 'buy' }) {
   const [editing, setEditing] = useState(false);
   const [confirmAsset, setConfirmAsset] = useState(false);
   const [confirmTx, setConfirmTx] = useState<Tx | null>(null);
+  const [alerting, setAlerting] = useState(false);
 
   // "/asset/12/buy" opens the buy form once, then the address goes back to "/asset/12".
   useEffect(() => {
@@ -85,6 +88,21 @@ export function AssetPage({ id, action }: { id: number; action?: 'buy' }) {
               : '';
   const q = quoteKey ? quotes[quoteKey] : undefined;
   const sorted = sortTxs(txs).reverse();
+  /** What a price alert for this asset should watch (manual assets have no live price). */
+  const alertTarget =
+    asset.type === 'crypto'
+      ? `crypto:${asset.symbol}`
+      : asset.type === 'stock'
+        ? `stock:${asset.symbol.toUpperCase()}`
+        : asset.type === 'gold'
+          ? karat && m.localGold[karat]
+            ? `sygold:${karat}`
+            : 'metal:XAU'
+          : asset.type === 'silver'
+            ? 'metal:XAG'
+            : asset.type === 'cash' && asset.symbol !== 'SYP'
+              ? `syp:${asset.symbol}`
+              : null;
 
   return (
     <>
@@ -111,6 +129,14 @@ export function AssetPage({ id, action }: { id: number; action?: 'buy' }) {
           <Button icon={<Minus className="h-4 w-4" />} onClick={() => setTxForm({ kind: 'sell' })} disabled={h.quantity <= 0}>
             {t.asset.addSell}
           </Button>
+          {alertTarget && (
+            <IconButton label={t.nav.alerts} onClick={() => setAlerting(true)}>
+              <Bell className="h-4 w-4" />
+            </IconButton>
+          )}
+          <IconButton label={t.widgets.popOut} onClick={() => void openWidget('asset', asset.id)}>
+            <PictureInPicture2 className="h-4 w-4" />
+          </IconButton>
           <IconButton label={t.asset.editAsset} onClick={() => setEditing(true)}>
             <Pencil className="h-4 w-4" />
           </IconButton>
@@ -244,6 +270,7 @@ export function AssetPage({ id, action }: { id: number; action?: 'buy' }) {
         />
       )}
       {editing && <AssetForm open asset={asset} onClose={() => setEditing(false)} />}
+      {alerting && alertTarget && <AlertForm defaultTarget={alertTarget} onClose={() => setAlerting(false)} />}
       <ConfirmModal
         open={confirmAsset}
         message={t.asset.confirmDelete(asset.name)}

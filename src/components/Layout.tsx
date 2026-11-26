@@ -1,4 +1,4 @@
-import { ChartLine, Eye, EyeOff, LayoutDashboard, RefreshCw, Settings, Wallet } from 'lucide-react';
+import { Bell, ChartLine, Eye, EyeOff, HandCoins, LayoutDashboard, RefreshCw, Settings, Wallet } from 'lucide-react';
 import { type ReactNode, useEffect, useState } from 'react';
 import { useT } from '../i18n';
 import { isTauri } from '../lib/platform';
@@ -97,6 +97,8 @@ export function Layout({ route, children }: { route: Route; children: ReactNode 
         <nav className="flex flex-col gap-0.5 px-3">
           <NavItem href="#/" active={route.name === 'dashboard' || route.name === 'asset'} icon={<LayoutDashboard className="h-4 w-4" />} label={t.nav.dashboard} />
           <NavItem href="#/prices" active={route.name === 'prices'} icon={<ChartLine className="h-4 w-4" />} label={t.nav.prices} />
+          <NavItem href="#/alerts" active={route.name === 'alerts'} icon={<Bell className="h-4 w-4" />} label={t.nav.alerts} />
+          <NavItem href="#/zakat" active={route.name === 'zakat'} icon={<HandCoins className="h-4 w-4" />} label={t.nav.zakat} />
           <NavItem href="#/portfolios" active={route.name === 'portfolios'} icon={<Wallet className="h-4 w-4" />} label={t.nav.portfolios} />
           <NavItem href="#/settings" active={route.name === 'settings'} icon={<Settings className="h-4 w-4" />} label={t.nav.settings} />
         </nav>

@@ -1,4 +1,4 @@
-import { Plus, TriangleAlert, Wallet } from 'lucide-react';
+import { PictureInPicture2, Plus, TriangleAlert, Wallet } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { AllocationBar } from '../components/AllocationBar';
 import { AssetForm } from '../components/AssetForm';
@@ -7,7 +7,8 @@ import { assetDetails, unitLabel } from '../components/assetText';
 import { HistoryChart, type HistoryPoint } from '../components/HistoryChart';
 import { PageHeader, PrivacyToggle, useTicker } from '../components/Layout';
 import { Dual, Pnl, useFmt } from '../components/Money';
-import { Badge, Button, Card, EmptyState, Select } from '../components/ui';
+import { Badge, Button, Card, EmptyState, IconButton, Select } from '../components/ui';
+import { openWidget } from '../state/widgets';
 import { useT } from '../i18n';
 import { summarize, type Holding } from '../lib/calc/portfolio';
 import { portfolioName, useHoldings, useMarket } from '../state/derived';
@@ -166,7 +167,12 @@ export function Dashboard() {
       {header}
       <div className="grid grid-cols-4 gap-4">
         <div className="col-span-2 rounded-xl border border-line bg-surface p-5 shadow-card">
-          <p className="text-[13px] text-ink-2">{t.dashboard.totalValue}</p>
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-[13px] text-ink-2">{t.dashboard.totalValue}</p>
+            <IconButton label={t.widgets.popOut} className="-me-2 -mt-1.5" onClick={() => void openWidget('total', filter === 'all' ? 0 : filter)}>
+              <PictureInPicture2 className="h-4 w-4" />
+            </IconButton>
+          </div>
           <Dual usd={summary.valueUsd} syp={summary.valueSyp} size="hero" className="mt-2" />
           {summary.missing > 0 && (
             <p className="mt-3 inline-flex items-center gap-1.5 text-xs text-warn">

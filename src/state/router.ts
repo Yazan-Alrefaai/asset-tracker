@@ -1,11 +1,15 @@
 import { useEffect, useState } from 'react';
+import type { WidgetKind } from './widgets';
 
 export type Route =
   | { name: 'dashboard' }
   | { name: 'asset'; id: number; action?: 'buy' }
   | { name: 'prices' }
+  | { name: 'alerts' }
+  | { name: 'zakat' }
   | { name: 'portfolios' }
-  | { name: 'settings' };
+  | { name: 'settings' }
+  | { name: 'widget'; kind: WidgetKind; ref: number };
 
 export function parseHash(hash: string): Route {
   const parts = hash.replace(/^#\/?/, '').split('/').filter(Boolean);
@@ -17,10 +21,21 @@ export function parseHash(hash: string): Route {
     }
     case 'prices':
       return { name: 'prices' };
+    case 'alerts':
+      return { name: 'alerts' };
+    case 'zakat':
+      return { name: 'zakat' };
     case 'portfolios':
       return { name: 'portfolios' };
     case 'settings':
       return { name: 'settings' };
+    case 'widget': {
+      const kind = parts[1];
+      const ref = Number(parts[2] ?? 0);
+      if (kind === 'prices') return { name: 'widget', kind, ref: 0 };
+      if ((kind === 'total' || kind === 'asset') && Number.isInteger(ref) && ref >= 0) return { name: 'widget', kind, ref };
+      return { name: 'dashboard' };
+    }
     default:
       return { name: 'dashboard' };
   }

@@ -1,4 +1,5 @@
-import { CircleCheck, Clock, RefreshCw, TriangleAlert } from 'lucide-react';
+import { CircleCheck, Clock, PictureInPicture2, RefreshCw, TriangleAlert } from 'lucide-react';
+import { openWidget } from '../state/widgets';
 import { useState } from 'react';
 import { PageHeader, useTicker } from '../components/Layout';
 import { useFmt } from '../components/Money';
@@ -323,7 +324,11 @@ export function PricesPage() {
   useTicker(15_000);
   return (
     <>
-      <PageHeader title={t.prices.title} />
+      <PageHeader title={t.prices.title}>
+        <Button icon={<PictureInPicture2 className="h-4 w-4" />} onClick={() => void openWidget('prices')}>
+          {t.widgets.popOut}
+        </Button>
+      </PageHeader>
       <div className="grid grid-cols-5 gap-4">
         <div className="col-span-2 space-y-4">
           <SypCard />

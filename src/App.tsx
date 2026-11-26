@@ -3,14 +3,20 @@ import { useEffect } from 'react';
 import { Layout } from './components/Layout';
 import { Spinner } from './components/ui';
 import { MESSAGES } from './i18n';
+import { AlertsPage } from './pages/AlertsPage';
 import { AssetPage } from './pages/AssetPage';
 import { Dashboard } from './pages/Dashboard';
 import { PortfoliosPage } from './pages/PortfoliosPage';
 import { PricesPage } from './pages/PricesPage';
 import { SettingsPage } from './pages/SettingsPage';
-import { boot } from './state/actions';
-import { useRoute } from './state/router';
+import { WidgetView } from './pages/WidgetView';
+import { ZakatPage } from './pages/ZakatPage';
+import { boot, bootWidget } from './state/actions';
+import { parseHash, useRoute } from './state/router';
 import { useStore } from './state/store';
+
+/** Widget windows open straight on a "#/widget/…" address and never become the main window. */
+const IS_WIDGET_WINDOW = parseHash(window.location.hash).name === 'widget';
 
 function useDocumentLanguage(): void {
   const lang = useStore((s) => s.settings.language);
@@ -44,7 +50,7 @@ export default function App() {
   useTheme();
 
   useEffect(() => {
-    void boot();
+    void (IS_WIDGET_WINDOW ? bootWidget() : boot());
   }, []);
 
   const t = MESSAGES[lang];
@@ -65,16 +71,20 @@ export default function App() {
     return (
       <div className="flex h-full items-center justify-center gap-3 text-muted">
         <Spinner className="h-5 w-5" />
-        {t.common.loading}
+        {IS_WIDGET_WINDOW ? null : t.common.loading}
       </div>
     );
   }
+
+  if (route.name === 'widget') return <WidgetView key={`${route.kind}-${route.ref}`} kind={route.kind} refId={route.ref} />;
 
   return (
     <Layout route={route}>
       {route.name === 'dashboard' && <Dashboard />}
       {route.name === 'asset' && <AssetPage key={route.id} id={route.id} action={route.action} />}
       {route.name === 'prices' && <PricesPage />}
+      {route.name === 'alerts' && <AlertsPage />}
+      {route.name === 'zakat' && <ZakatPage />}
       {route.name === 'portfolios' && <PortfoliosPage />}
       {route.name === 'settings' && <SettingsPage />}
     </Layout>

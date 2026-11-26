@@ -74,6 +74,22 @@ export const MIGRATIONS: string[][] = [
     )`,
     `INSERT INTO portfolios (name, kind, sort_order) VALUES ('', 'personal', 0), ('', 'business', 1)`,
   ],
+  // v2 (app 0.2): price alerts
+  [
+    `CREATE TABLE alerts (
+      id INTEGER PRIMARY KEY,
+      target TEXT NOT NULL,
+      condition TEXT NOT NULL CHECK (condition IN ('above','below')),
+      value REAL NOT NULL CHECK (value > 0),
+      repeat INTEGER NOT NULL DEFAULT 0,
+      active INTEGER NOT NULL DEFAULT 1,
+      state TEXT NOT NULL DEFAULT 'armed' CHECK (state IN ('armed','fired')),
+      note TEXT NOT NULL DEFAULT '',
+      last_triggered_at TEXT,
+      last_value REAL,
+      created_at TEXT NOT NULL DEFAULT ${NOW}
+    )`,
+  ],
 ];
 
 export async function migrate(db: Db): Promise<number> {
