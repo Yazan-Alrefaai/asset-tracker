@@ -5,13 +5,13 @@ import { buildMarket } from '../lib/calc/market';
 import { getDb } from '../lib/db';
 import * as repo from '../lib/db/repo';
 import type { NewAlert } from '../lib/model';
+import { serial } from '../lib/serial';
 import { totalsOf } from './derived';
-import { sendSystemNotification } from './notify';
+import { notifyUser } from './notices';
 import { announceChange } from './sync';
-import { toast, useStore } from './store';
+import { useStore } from './store';
 
 let timer: ReturnType<typeof setTimeout> | undefined;
-let checking = false;
 
 /** Check alerts shortly (prices often arrive in several groups a moment apart). */
 export function scheduleAlertCheck(delayMs = 1500): void {
@@ -19,34 +19,36 @@ export function scheduleAlertCheck(delayMs = 1500): void {
   timer = setTimeout(() => void checkAlerts(), delayMs);
 }
 
-/** Evaluates all active alerts against current prices. Returns how many fired. */
-export async function checkAlerts(): Promise<number> {
-  if (checking) return 0;
-  checking = true;
-  try {
-    const st = useStore.getState();
-    const active = st.alerts.filter((a) => a.active);
-    if (!active.length) return 0;
-    const m = buildMarket(st.quotes, st.settings);
-    const totals = active.some((a) => a.target.startsWith('total:')) ? totalsOf(st, m) : { usd: null, syp: null };
-    const { fired, changed } = evaluateAlerts(active, (target) => alertValue(target, m, totals));
-    if (changed.length) {
-      await (await getDb()).batch(changed.map(repo.alertStateUpdate));
-      const byId = new Map(changed.map((a) => [a.id, a]));
-      useStore.setState((s) => ({ alerts: s.alerts.map((a) => byId.get(a.id) ?? a) }));
-      announceChange();
-    }
-    const t = MESSAGES[st.settings.language];
-    for (const f of fired) {
-      const msg = alertMessage(f.alert, f.value, m, t, st.settings.language);
-      toast(`${msg.title} — ${msg.body}`, 'ok', 12_000);
-      if (st.settings.notifications) await sendSystemNotification(msg.title, msg.body);
-    }
-    return fired.length;
-  } finally {
-    checking = false;
+/**
+ * Evaluates all active alerts against current prices. Returns how many fired.
+ * One check at a time; a check asked for during a check runs right after it (never dropped).
+ */
+export const checkAlerts = serial(async (): Promise<number> => {
+  const st = useStore.getState();
+  const active = st.alerts.filter((a) => a.active);
+  if (!active.length) return 0;
+  const m = buildMarket(st.quotes, st.settings);
+  const totals = active.some((a) => a.target.startsWith('total:')) ? totalsOf(st, m) : { usd: null, syp: null };
+  const { fired, changed } = evaluateAlerts(active, (target) => alertValue(target, m, totals));
+  if (changed.length) {
+    await (await getDb()).batch(changed.map(repo.alertStateUpdate));
+    const byId = new Map(changed.map((a) => [a.id, a]));
+    useStore.setState((s) => ({ alerts: s.alerts.map((a) => byId.get(a.id) ?? a) }));
+    announceChange();
   }
-}
+  const t = MESSAGES[st.settings.language];
+  for (const f of fired) {
+    const msg = alertMessage(f.alert, f.value, m, t, st.settings.language);
+    await notifyUser({
+      kind: 'price',
+      title: msg.title,
+      body: msg.body,
+      refId: f.alert.id,
+      data: { type: 'price', target: f.alert.target, condition: f.alert.condition, line: f.alert.value, value: f.value, note: f.alert.note },
+    });
+  }
+  return fired.length;
+});
 
 async function reloadAlerts(): Promise<void> {
   const rows = await (await getDb()).select('SELECT * FROM alerts ORDER BY id');

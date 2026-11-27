@@ -44,3 +44,25 @@ describe('parseSettings', () => {
     expect(parseSettings([row('trayItems', ['btc', 'dogecoin'])]).trayItems).toEqual(['btc']);
   });
 });
+
+describe('budget settings', () => {
+  it('defaults to no budget, in USD, for all portfolios, with warnings on', () => {
+    const s = parseSettings([]);
+    expect(s).toMatchObject({ budgetMonthly: null, budgetCurrency: 'USD', budgetPortfolio: null, budgetAlerts: true, budgetNotified: '' });
+  });
+
+  it('reads saved values and drops broken ones', () => {
+    const ok = parseSettings([
+      { key: 'budgetMonthly', value: '1200' },
+      { key: 'budgetCurrency', value: '"SYP"' },
+      { key: 'budgetPortfolio', value: '2' },
+    ]);
+    expect(ok).toMatchObject({ budgetMonthly: 1200, budgetCurrency: 'SYP', budgetPortfolio: 2 });
+    const bad = parseSettings([
+      { key: 'budgetMonthly', value: '-5' },
+      { key: 'budgetCurrency', value: '"EUR"' },
+      { key: 'budgetPortfolio', value: '"x"' },
+    ]);
+    expect(bad).toMatchObject({ budgetMonthly: null, budgetCurrency: 'USD', budgetPortfolio: null });
+  });
+});

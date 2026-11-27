@@ -2,7 +2,7 @@ import type { Messages } from '../i18n/en';
 import { coinById } from './catalog';
 import { type Market, splitKey } from './calc/market';
 import { fmtMoney, fmtNum } from './format';
-import type { Alert } from './model';
+import type { Alert, NoticeData } from './model';
 import type { Language } from './settings';
 
 /** Totals used by "total value" alerts. */
@@ -85,6 +85,13 @@ export function suggestAlertValue(current: number | null, condition: 'above' | '
   return Number((Math.round(v / step) * step).toFixed(4));
 }
 
+/** Alert line set as a percentage away from today's value ("+3%" above, "-3%" below). */
+export function valueFromPercent(current: number | null, percent: number | null, condition: 'above' | 'below'): number | null {
+  if (current == null || !(current > 0) || percent == null || !Number.isFinite(percent) || percent <= 0) return null;
+  const v = current * (condition === 'above' ? 1 + percent / 100 : 1 - percent / 100);
+  return v > 0 ? v : null;
+}
+
 /** How far a price must move back before a repeating alert can fire again (stops spam around the line). */
 export const REARM_MARGIN = 0.005;
 
@@ -126,6 +133,29 @@ export function alertMessage(a: Alert, value: number, m: Market, t: Messages, la
   const title = a.condition === 'above' ? t.alerts.firedAbove(what, line) : t.alerts.firedBelow(what, line);
   const body = [t.alerts.nowAt(now), a.note].filter(Boolean).join(' · ');
   return { title, body };
+}
+
+/**
+ * Text of a saved notification in the current language. Uses the facts saved with it when present;
+ * older or unknown entries fall back to the text saved when they were sent.
+ */
+export function noticeText(
+  n: { title: string; body: string; data: NoticeData | null },
+  m: Market,
+  t: Messages,
+  lang: Language,
+): { title: string; body: string } {
+  const d = n.data;
+  if (d?.type === 'price') {
+    const a = { target: d.target, condition: d.condition, value: d.line, note: d.note } as Alert;
+    return alertMessage(a, d.value, m, t, lang);
+  }
+  if (d?.type === 'budget') {
+    const spent = fmtMoney(d.spent, d.currency, lang);
+    const limit = fmtMoney(d.limit, d.currency, lang);
+    return { title: d.level === 100 ? t.budget.overTitle : t.budget.nearTitle, body: t.budget.body(spent, limit) };
+  }
+  return { title: n.title, body: n.body };
 }
 
 export interface TargetOption {

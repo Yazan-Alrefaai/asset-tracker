@@ -313,6 +313,51 @@ describe('database', () => {
     expect((await repo.loadAll(db)).cashflows).toEqual([]);
   });
 
+  it('upgrades a version-3 database and keeps a capped notification history', async () => {
+    const SQL = await initSqlJs();
+    const raw = new SQL.Database();
+    raw.run('PRAGMA foreign_keys = ON');
+    const old = createSqlJsDb(raw);
+    await old.batch([...MIGRATIONS.slice(0, 3).flat().map((sql) => ({ sql })), { sql: 'PRAGMA user_version = 3' }]);
+    await repo.insertCashFlow(old, salary);
+    await migrate(old);
+    let all = await repo.loadAll(old);
+    expect(all.cashflows).toHaveLength(1);
+    expect(all.notices).toEqual([]);
+
+    const data = { type: 'price' as const, target: 'metal:XAU', condition: 'above' as const, line: 3700, value: 3712, note: '' };
+    await repo.insertNotice(old, { kind: 'price', title: 'Gold is above $3,700', body: 'Now $3,712', refId: 4, data });
+    await repo.insertNotice(old, { kind: 'budget', title: '80% of your budget', body: '', refId: null, data: null });
+    all = await repo.loadAll(old);
+    expect(all.notices.map((n) => [n.kind, n.title, n.refId, n.read])).toEqual([
+      ['budget', '80% of your budget', null, false],
+      ['price', 'Gold is above $3,700', 4, false],
+    ]);
+    expect(all.notices[1].data).toEqual(data);
+    expect(all.notices[0].data).toBeNull();
+    expect(all.notices[0].createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+
+    await repo.markNoticesRead(old);
+    expect((await repo.loadAll(old)).notices.every((n) => n.read)).toBe(true);
+    await repo.clearNotices(old);
+    expect((await repo.loadAll(old)).notices).toEqual([]);
+  });
+
+  it('keeps only the newest notifications', async () => {
+    for (let i = 1; i <= repo.NOTICE_LIMIT + 5; i++) {
+      await repo.insertNotice(db, { kind: 'price', title: `n${i}`, body: '', refId: null, data: null });
+    }
+    const [{ c }] = await db.select<{ c: number }>('SELECT count(*) AS c FROM notifications');
+    expect(c).toBe(repo.NOTICE_LIMIT);
+    const { notices } = await repo.loadAll(db);
+    expect(notices[0].title).toBe(`n${repo.NOTICE_LIMIT + 5}`);
+    expect(notices.at(-1)!.title).toBe('n6');
+  });
+
+  it('rejects unknown notification kinds', async () => {
+    await expect(repo.insertNotice(db, { kind: 'spam' as never, title: 'x', body: '', refId: null, data: null })).rejects.toThrow();
+  });
+
   it('skips broken income/expense rows in a backup instead of failing the import', async () => {
     const good = { id: 7, ...salary, createdAt: '2026-11-01T10:00:00Z' };
     const text = JSON.stringify({

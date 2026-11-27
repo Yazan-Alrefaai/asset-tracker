@@ -1,5 +1,6 @@
-import { Copy, Download, Minus, Pencil, Plus, Receipt, Trash2, X } from 'lucide-react';
+import { Copy, Download, Minus, Pencil, PiggyBank, Plus, Receipt, Trash2, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { BudgetForm } from '../components/BudgetForm';
 import { CashflowChart, EXPENSE_COLOR, INCOME_COLOR } from '../components/CashflowChart';
 import { FlowForm, type FlowFormProps } from '../components/FlowForm';
 import { categoryLabel } from '../components/flowText';
@@ -8,6 +9,7 @@ import { Dual, Pnl, useFmt } from '../components/Money';
 import { Badge, Button, Card, ConfirmModal, EmptyState, IconButton, Segmented, Select, cx } from '../components/ui';
 import { useT } from '../i18n';
 import { cashflowsCsv } from '../lib/backup';
+import { budgetStatus, daysLeftInMonth } from '../lib/budget';
 import {
   byCategory,
   filterFlows,
@@ -30,7 +32,7 @@ import { todayLocal } from '../lib/dates';
 import { fmtMonth, fmtPct } from '../lib/format';
 import type { CashFlow, FlowKind } from '../lib/model';
 import { removeCashFlow } from '../state/actions';
-import { portfolioName } from '../state/derived';
+import { portfolioName, useMarket } from '../state/derived';
 import { saveTextFile } from '../state/files';
 import { errorText, toast, useStore } from '../state/store';
 import { PortfolioFilter } from './Dashboard';
@@ -43,6 +45,65 @@ function Tile({ label, children, footer }: { label: string; children: React.Reac
       <p className="text-[13px] text-ink-2">{label}</p>
       <div className="mt-2">{children}</div>
       {footer && <p className="mt-2 text-xs text-muted">{footer}</p>}
+    </div>
+  );
+}
+
+function BudgetCard({ month, onEdit }: { month: string; onEdit: () => void }) {
+  const t = useT();
+  const f = useFmt();
+  const m = useMarket();
+  const s = useStore((st) => st.settings);
+  const flows = useStore((st) => st.cashflows);
+  const portfolios = useStore((st) => st.portfolios);
+  const status = useMemo(
+    () => budgetStatus(flows, month, { limit: s.budgetMonthly, currency: s.budgetCurrency, portfolioId: s.budgetPortfolio }, m.sypBuy),
+    [flows, month, s.budgetMonthly, s.budgetCurrency, s.budgetPortfolio, m.sypBuy],
+  );
+  if (!status) return null;
+  const today = todayLocal();
+  const isThisMonth = month === monthOf(today);
+  const tone = status.level === 100 ? 'bg-neg' : status.level === 80 ? 'bg-warn' : 'bg-accent';
+  const scope =
+    s.budgetPortfolio == null ? t.common.allPortfolios : portfolioName(portfolios.find((p) => p.id === s.budgetPortfolio), t);
+  return (
+    <div className="mt-4 rounded-xl border border-line bg-surface p-5 shadow-card">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="flex items-center gap-2 text-[13px] text-ink-2">
+            <PiggyBank className="h-4 w-4 text-muted" />
+            {t.budget.title} · {fmtMonth(month, f.lang)}
+            {portfolios.length > 1 && <span className="text-muted">· {scope}</span>}
+          </p>
+          <p className="tnum mt-1.5 text-lg font-semibold text-ink">
+            {t.budget.spentOf(f.money(status.spent, status.currency), f.money(status.limit, status.currency))}
+          </p>
+        </div>
+        <Button size="sm" icon={<Pencil className="h-3.5 w-3.5" />} onClick={onEdit}>
+          {t.budget.edit}
+        </Button>
+      </div>
+      <div
+        className="mt-3 h-2.5 w-full overflow-hidden rounded-full bg-surface-2"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(Math.min(1, status.ratio) * 100)}
+        aria-label={t.budget.title}
+      >
+        <div className={cx('h-full rounded-full transition-[width] duration-700 ease-out', tone)} style={{ width: `${Math.min(1, status.ratio) * 100}%` }} />
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+        <span className={cx('font-medium', status.level === 100 ? 'text-neg' : status.level === 80 ? 'text-warn' : 'text-ink-2')}>
+          {t.budget.used(f.privacy ? '•••' : fmtPct(status.ratio, f.lang, false))}
+        </span>
+        <span className="text-ink-2">
+          {status.remaining >= 0
+            ? t.budget.left(f.money(status.remaining, status.currency))
+            : t.budget.over(f.money(-status.remaining, status.currency))}
+        </span>
+        {isThisMonth && <span className="text-muted">{t.budget.daysLeft(daysLeftInMonth(today))}</span>}
+      </div>
     </div>
   );
 }
@@ -231,6 +292,8 @@ export function CashflowPage() {
   const [form, setForm] = useState<Omit<FlowFormProps, 'onClose'> | null>(null);
   const [toDelete, setToDelete] = useState<CashFlow | null>(null);
   const [limit, setLimit] = useState(PAGE);
+  const [editingBudget, setEditingBudget] = useState(false);
+  const hasBudget = useStore((s) => s.settings.budgetMonthly != null);
 
   const inPortfolio = useMemo(() => filterFlows(flows, { portfolioId: portfolioFilter, period: { kind: 'all' } }), [flows, portfolioFilter]);
   const inPeriod = useMemo(() => filterFlows(inPortfolio, { portfolioId: 'all', period }), [inPortfolio, period]);
@@ -291,6 +354,7 @@ export function CashflowPage() {
   const modals = (
     <>
       {form && <FlowForm {...form} onClose={() => setForm(null)} />}
+      {editingBudget && <BudgetForm onClose={() => setEditingBudget(false)} />}
       <ConfirmModal
         open={!!toDelete}
         message={t.cashflow.confirmDelete}
@@ -339,6 +403,11 @@ export function CashflowPage() {
           }}
         />
         <span className="text-sm text-muted">{t.cashflow.entries(inPeriod.length)}</span>
+        {!hasBudget && (
+          <Button size="sm" variant="ghost" className="ms-auto" icon={<PiggyBank className="h-4 w-4" />} onClick={() => setEditingBudget(true)}>
+            {t.budget.set}
+          </Button>
+        )}
       </div>
 
       <div className="grid grid-cols-3 gap-4">
@@ -362,6 +431,8 @@ export function CashflowPage() {
         </Tile>
       </div>
       {sypMissing && <p className="mt-2 text-xs text-warn">{t.cashflow.noSypRate}</p>}
+
+      <BudgetCard month={period.kind === 'month' ? period.key : thisMonth} onEdit={() => setEditingBudget(true)} />
 
       <Card title={t.cashflow.chartTitle} className="mt-4">
         <CashflowChart points={series} currency={chartCurrency} />

@@ -1,5 +1,5 @@
 import { ArrowDownRight, ArrowUpRight } from 'lucide-react';
-import { useMemo } from 'react';
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { useT } from '../i18n';
 import { fmtAgo, fmtDate, fmtMoney, fmtNum, fmtPct, qtyDecimals, type MoneyOpts } from '../lib/format';
 import type { AssetType } from '../lib/model';
@@ -119,6 +119,27 @@ export function Pnl({
         </div>
       )}
     </div>
+  );
+}
+
+/** Briefly tints a live value green or red when it goes up or down (the arrow-free "tick"). */
+export function Flash({ value, children, className }: { value: number | null | undefined; children: ReactNode; className?: string }) {
+  const prev = useRef(value);
+  const [tick, setTick] = useState<{ n: number; dir: 'up' | 'down' } | null>(null);
+  useEffect(() => {
+    const before = prev.current;
+    prev.current = value;
+    if (before != null && value != null && value !== before) {
+      setTick((x) => ({ n: (x?.n ?? 0) + 1, dir: value > before ? 'up' : 'down' }));
+    }
+  }, [value]);
+  return (
+    <span
+      key={tick?.n ?? 0}
+      className={cx('-mx-1 rounded px-1', tick?.dir === 'up' && 'animate-flash-up', tick?.dir === 'down' && 'animate-flash-down', className)}
+    >
+      {children}
+    </span>
   );
 }
 

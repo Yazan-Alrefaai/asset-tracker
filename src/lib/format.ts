@@ -21,7 +21,7 @@ export const DASH = '—';
 
 export function moneyDecimals(v: number, currency: string): number {
   const a = Math.abs(v);
-  if (currency === 'SYP') return a >= 1000 ? 0 : 2;
+  if (currency === 'SYP') return a >= 1000 || a === 0 ? 0 : 2;
   if (a === 0 || a >= 1) return 2;
   if (a >= 0.01) return 4;
   return 6;

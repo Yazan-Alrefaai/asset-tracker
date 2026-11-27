@@ -43,7 +43,7 @@ pub fn run() {
         .setup(|app| {
             let state = db::open(app.handle())?;
             // Respect the saved choice from the very first second (before the screens have loaded).
-            let keep = state.setting("keepInTray").map_or(true, |v| v.trim() != "false");
+            let keep = state.setting("keepInTray").is_none_or(|v| v.trim() != "false");
             app.state::<UiState>().keep_in_tray.store(keep, Ordering::Relaxed);
             app.manage(state);
             tray::create(app)?;

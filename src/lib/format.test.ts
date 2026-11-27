@@ -58,3 +58,11 @@ describe('fmtMonth', () => {
     expect(fmtMonth('soon', 'en')).toBe('soon');
   });
 });
+
+describe('Syrian pound amounts', () => {
+  it('shows zero without decimals', () => {
+    expect(fmtMoney(0, 'SYP', 'en')).toBe('SYP 0');
+    expect(fmtMoney(152.5, 'SYP', 'en')).toBe('SYP 152.50');
+    expect(fmtMoney(15_550, 'SYP', 'en')).toBe('SYP 15,550');
+  });
+});

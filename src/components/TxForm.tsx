@@ -1,9 +1,11 @@
+import { Zap } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useT } from '../i18n';
 import { CURRENCIES, SYP_OLD, SYP_REDENOMINATION } from '../lib/catalog';
 import { todayLocal } from '../lib/dates';
 import { parseNum, toInput } from '../lib/format';
 import { unitsPerUsdNow } from '../lib/calc/market';
+import { liveTradePrice } from '../lib/calc/valuation';
 import type { Asset, NewTx, Tx, TxKind } from '../lib/model';
 import { fetchHistoricalUsdRate } from '../lib/prices/sources';
 import { addTx, editTx } from '../state/actions';
@@ -90,6 +92,10 @@ export function TxForm({
   const totalUsd = total != null && usdRate ? total / usdRate : null;
   const sellTooMuch = kind === 'sell' && q != null && q > holdingQty + (tx?.kind === 'sell' ? tx.quantity : 0) + 1e-9;
   const isMetal = asset.type === 'gold' || asset.type === 'silver';
+  // Today's price for one unit, in the currency picked (old pounds ×100 so it matches what is typed).
+  const liveNew = liveTradePrice(asset, m, kind, storeCur);
+  const live = liveNew == null ? null : liveNew / factor;
+  const liveDecimals = storeCur === 'SYP' ? (live != null && live >= 1000 ? 0 : 2) : live != null && live >= 100 ? 2 : 4;
 
   async function getHistoricalRate() {
     setFetchingRate(true);
@@ -200,7 +206,25 @@ export function TxForm({
           }
           error={errors.price}
         >
-          {(id) => <NumberInput id={id} value={priceStr} onChange={(e) => setPriceStr(e.target.value)} placeholder="0" />}
+          {(id) => (
+            <>
+              <NumberInput id={id} value={priceStr} onChange={(e) => setPriceStr(e.target.value)} placeholder="0" />
+              {live != null && (
+                <button
+                  type="button"
+                  title={t.txForm.liveHint}
+                  onClick={() => {
+                    setMode('unit');
+                    setPriceStr(toInput(Number(live.toFixed(liveDecimals)), liveDecimals));
+                  }}
+                  className="mt-1.5 inline-flex items-center gap-1 rounded text-xs font-medium text-accent-ink hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+                >
+                  <Zap className="h-3 w-3" aria-hidden />
+                  {t.txForm.useLive(`${f.price(live, isOld ? 'SYP' : storeCur, { decimals: liveDecimals })} / ${unit}`)}
+                </button>
+              )}
+            </>
+          )}
         </Field>
         <Field label={kind === 'buy' ? t.txForm.paidIn : t.txForm.receivedIn} hint={isOld ? t.txForm.oldNote : undefined}>
           {(id) => (

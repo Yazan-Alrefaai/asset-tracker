@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useT } from '../i18n';
-import { alertCurrency, alertTargets, alertValue, fmtAlertValue, suggestAlertValue } from '../lib/alerts';
+import { alertCurrency, alertTargets, alertValue, fmtAlertValue, suggestAlertValue, valueFromPercent } from '../lib/alerts';
 import { parseNum, toInput } from '../lib/format';
 import type { Alert, AlertCondition } from '../lib/model';
 import { addAlert, editAlert } from '../state/alerts';
@@ -54,18 +54,23 @@ export function AlertForm({
   const [condition, setCondition] = useState<AlertCondition>(alert?.condition ?? 'above');
   const [valueStr, setValueStr] = useState(alert ? roundForInput(alert.value) : roundForInput(suggestAlertValue(current, 'above')));
   const [valueTouched, setValueTouched] = useState(!!alert);
+  const [mode, setMode] = useState<'price' | 'percent'>('price');
+  const [pctStr, setPctStr] = useState('3');
   const [repeat, setRepeat] = useState(alert?.repeat ?? false);
   const [note, setNote] = useState(alert?.note ?? '');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const value = parseNum(valueStr);
+  const value = mode === 'percent' ? valueFromPercent(current, parseNum(pctStr), condition) : parseNum(valueStr);
   const alreadyMet = value != null && current != null && (condition === 'above' ? current >= value : current <= value);
   const allOptions = options.some((o) => o.target === target) ? options : [{ target, label: target, group: 'total' as const }, ...options];
   const groups = ['metals', 'syp', 'crypto', 'stocks', 'total'] as const;
 
   async function save() {
-    if (value == null) return setError(valueStr.trim() ? t.common.enterNumber : t.common.required);
+    if (value == null) {
+      const typed = mode === 'percent' ? pctStr : valueStr;
+      return setError(mode === 'percent' && current == null ? t.alerts.now('—') : typed.trim() ? t.common.enterNumber : t.common.required);
+    }
     if (value <= 0) return setError(t.common.mustBePositive);
     setSaving(true);
     try {
@@ -138,7 +143,24 @@ export function AlertForm({
               />
             )}
           </Field>
-          <Field label={`${t.alerts.value} (${currency})`} error={error} className="min-w-[180px] flex-1">
+          <Field label={t.alerts.by}>
+            {() => (
+              <Segmented
+                value={mode}
+                onChange={(v) => {
+                  setMode(v);
+                  setError(null);
+                }}
+                options={[
+                  { value: 'price', label: t.alerts.byPrice },
+                  { value: 'percent', label: t.alerts.byPercent },
+                ]}
+              />
+            )}
+          </Field>
+        </div>
+        {mode === 'price' ? (
+          <Field label={`${t.alerts.value} (${currency})`} error={error}>
             {(id) => (
               <NumberInput
                 id={id}
@@ -151,7 +173,25 @@ export function AlertForm({
               />
             )}
           </Field>
-        </div>
+        ) : (
+          <Field
+            label={`${t.alerts.percent} (%)`}
+            error={error}
+            hint={value != null ? t.alerts.percentResult(fmtAlertValue(value, currency, target, f.lang)) : undefined}
+          >
+            {(id) => (
+              <NumberInput
+                id={id}
+                value={pctStr}
+                className="max-w-[160px]"
+                onChange={(e) => {
+                  setPctStr(e.target.value);
+                  setError(null);
+                }}
+              />
+            )}
+          </Field>
+        )}
         {alreadyMet && <p className="rounded-lg bg-warn/10 px-3 py-2 text-xs text-warn">{t.alerts.alreadyMet}</p>}
         <Checkbox checked={repeat} onChange={setRepeat} label={t.alerts.repeat} />
         <Field label={t.alerts.note} optional>
