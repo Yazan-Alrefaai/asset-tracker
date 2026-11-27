@@ -1,6 +1,6 @@
 /** Shared helpers for unit tests (not used by the app). */
 import type { Market } from './calc/market';
-import type { Alert, Asset, Tx } from './model';
+import type { Alert, Asset, CashFlow, Tx } from './model';
 
 export function market(over: Partial<Market> = {}): Market {
   return {
@@ -74,6 +74,23 @@ export function alert(over: Partial<Alert>): Alert {
     note: '',
     lastTriggeredAt: null,
     lastValue: null,
+    createdAt: '',
+    ...over,
+  };
+}
+
+export function flow(over: Partial<CashFlow>): CashFlow {
+  return {
+    id: seq++,
+    portfolioId: 1,
+    kind: 'expense',
+    date: '2026-11-10',
+    amount: 1,
+    currency: 'USD',
+    category: 'other',
+    usdRate: 1,
+    sypRate: 150,
+    note: '',
     createdAt: '',
     ...over,
   };

@@ -4,9 +4,11 @@ import type {
   AlertCondition,
   Asset,
   AssetType,
+  CashFlow,
   MetalForm,
   NewAlert,
   NewAsset,
+  NewCashFlow,
   NewTx,
   Portfolio,
   PortfolioKind,
@@ -112,6 +114,22 @@ export function toAlert(r: Row): Alert {
   };
 }
 
+export function toCashFlow(r: Row): CashFlow {
+  return {
+    id: num(r.id),
+    portfolioId: num(r.portfolio_id),
+    kind: str(r.kind) === 'income' ? 'income' : 'expense',
+    date: str(r.date),
+    amount: num(r.amount),
+    currency: str(r.currency),
+    category: str(r.category) || 'other',
+    usdRate: num(r.usd_rate) || 1,
+    sypRate: numOrNull(r.syp_rate),
+    note: str(r.note),
+    createdAt: str(r.created_at),
+  };
+}
+
 export interface AllData {
   portfolios: Portfolio[];
   assets: Asset[];
@@ -120,6 +138,7 @@ export interface AllData {
   settingsRows: { key: string; value: string }[];
   snapshots: Snapshot[];
   alerts: Alert[];
+  cashflows: CashFlow[];
 }
 
 export async function loadAll(db: Db): Promise<AllData> {
@@ -130,6 +149,7 @@ export async function loadAll(db: Db): Promise<AllData> {
   const settingsRows = await db.select<{ key: string; value: string }>('SELECT key, value FROM settings');
   const snapshots = await db.select('SELECT * FROM snapshots ORDER BY date');
   const alerts = await db.select('SELECT * FROM alerts ORDER BY id');
+  const cashflows = await db.select('SELECT * FROM cashflows ORDER BY date, id');
   return {
     portfolios: portfolios.map(toPortfolio),
     assets: assets.map(toAsset),
@@ -138,6 +158,7 @@ export async function loadAll(db: Db): Promise<AllData> {
     settingsRows,
     snapshots: snapshots.map(toSnapshot),
     alerts: alerts.map(toAlert),
+    cashflows: cashflows.map(toCashFlow),
   };
 }
 
@@ -214,6 +235,7 @@ export async function deletePortfolio(db: Db, id: number): Promise<void> {
     { sql: 'DELETE FROM transactions WHERE asset_id IN (SELECT id FROM assets WHERE portfolio_id = ?)', params: [id] },
     { sql: 'DELETE FROM assets WHERE portfolio_id = ?', params: [id] },
     { sql: 'DELETE FROM snapshots WHERE portfolio_id = ?', params: [id] },
+    { sql: 'DELETE FROM cashflows WHERE portfolio_id = ?', params: [id] },
     { sql: 'DELETE FROM portfolios WHERE id = ?', params: [id] },
   ]);
 }
@@ -303,6 +325,33 @@ export async function updateTx(db: Db, id: number, t: NewTx): Promise<void> {
 
 export async function deleteTx(db: Db, id: number): Promise<void> {
   await db.execute('DELETE FROM transactions WHERE id = ?', [id]);
+}
+
+// ---------- income & expenses ----------
+
+const FLOW_COLS = ['portfolio_id', 'kind', 'date', 'amount', 'currency', 'category', 'usd_rate', 'syp_rate', 'note'] as const;
+
+function flowValues(f: NewCashFlow): SqlValue[] {
+  return [f.portfolioId, f.kind, f.date, f.amount, f.currency, f.category, f.usdRate, f.sypRate, f.note];
+}
+
+export async function insertCashFlow(db: Db, f: NewCashFlow): Promise<number> {
+  const r = await db.execute(
+    `INSERT INTO cashflows (${FLOW_COLS.join(', ')}) VALUES (${FLOW_COLS.map(() => '?').join(', ')})`,
+    flowValues(f),
+  );
+  return r.lastInsertId;
+}
+
+export async function updateCashFlow(db: Db, id: number, f: NewCashFlow): Promise<void> {
+  await db.execute(`UPDATE cashflows SET ${FLOW_COLS.map((c) => `${c} = ?`).join(', ')} WHERE id = ?`, [
+    ...flowValues(f),
+    id,
+  ]);
+}
+
+export async function deleteCashFlow(db: Db, id: number): Promise<void> {
+  await db.execute('DELETE FROM cashflows WHERE id = ?', [id]);
 }
 
 // ---------- quotes, settings, snapshots ----------

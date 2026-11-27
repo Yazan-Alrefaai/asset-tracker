@@ -4,7 +4,7 @@ import { todayLocal } from '../lib/dates';
 import { getDb } from '../lib/db';
 import { migrate } from '../lib/db/migrations';
 import * as repo from '../lib/db/repo';
-import type { NewAsset, NewTx, Portfolio, Snapshot } from '../lib/model';
+import type { NewAsset, NewCashFlow, NewTx, Portfolio, Snapshot } from '../lib/model';
 import { isTauri } from '../lib/platform';
 import { parseSettings, writeUiCache, type Settings } from '../lib/settings';
 import { scheduleAlertCheck } from './alerts';
@@ -37,6 +37,7 @@ async function loadEverything(): Promise<repo.AllData> {
     txs: all.txs,
     snapshots: all.snapshots,
     alerts: all.alerts,
+    cashflows: all.cashflows,
     quotes: Object.fromEntries(all.quotes.map((q) => [q.key, q])),
   });
   return all;
@@ -105,6 +106,7 @@ export async function reloadData(): Promise<void> {
     txs: all.txs,
     snapshots: all.snapshots,
     alerts: all.alerts,
+    cashflows: all.cashflows,
   });
   scheduleSnapshots();
   scheduleAlertCheck();
@@ -189,6 +191,24 @@ export async function editTx(id: number, t: NewTx): Promise<void> {
 
 export async function removeTx(id: number): Promise<void> {
   await repo.deleteTx(await getDb(), id);
+  await reloadData();
+}
+
+// ---------- income & expenses ----------
+
+export async function addCashFlow(f: NewCashFlow): Promise<number> {
+  const id = await repo.insertCashFlow(await getDb(), f);
+  await reloadData();
+  return id;
+}
+
+export async function editCashFlow(id: number, f: NewCashFlow): Promise<void> {
+  await repo.updateCashFlow(await getDb(), id, f);
+  await reloadData();
+}
+
+export async function removeCashFlow(id: number): Promise<void> {
+  await repo.deleteCashFlow(await getDb(), id);
   await reloadData();
 }
 

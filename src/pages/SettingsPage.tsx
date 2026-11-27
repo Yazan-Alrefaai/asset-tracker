@@ -46,6 +46,7 @@ export function SettingsPage() {
       txs: st.txs,
       snapshots: st.snapshots,
       alerts: st.alerts,
+      cashflows: st.cashflows,
       settings: st.settings,
     });
     if (await saveTextFile(`asset-tracker-backup-${todayLocal()}.json`, JSON.stringify(backup, null, 2), 'json')) toast(t.settings.exported);
