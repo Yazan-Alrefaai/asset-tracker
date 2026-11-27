@@ -1,11 +1,12 @@
 import type { Db, Statement } from './db/types';
 import { snapshotUpsert } from './db/repo';
-import type { Alert, Asset, Portfolio, Snapshot, Tx } from './model';
+import { flowSyp, flowUsd } from './cashflow';
+import type { Alert, Asset, CashFlow, Portfolio, Snapshot, Tx } from './model';
 import { DEFAULT_SETTINGS, type Settings } from './settings';
 
 export const BACKUP_APP = 'asset-tracker';
-/** 1 = v0.1 (no alerts), 2 = v0.2 (adds alerts). Older files can always be imported. */
-export const BACKUP_FORMAT = 2;
+/** 1 = v0.1 (no alerts), 2 = v0.2 (adds alerts), 3 = v0.3 (adds income & expenses). Older files can always be imported. */
+export const BACKUP_FORMAT = 3;
 
 export interface BackupFile {
   app: typeof BACKUP_APP;
@@ -16,6 +17,7 @@ export interface BackupFile {
   transactions: Tx[];
   snapshots: Snapshot[];
   alerts: Alert[];
+  cashflows: CashFlow[];
   settings: Partial<Settings>;
 }
 
@@ -25,6 +27,7 @@ export function makeBackup(data: {
   txs: Tx[];
   snapshots: Snapshot[];
   alerts: Alert[];
+  cashflows?: CashFlow[];
   settings: Settings;
 }): BackupFile {
   return {
@@ -36,6 +39,7 @@ export function makeBackup(data: {
     transactions: data.txs,
     snapshots: data.snapshots,
     alerts: data.alerts,
+    cashflows: data.cashflows ?? [],
     settings: data.settings,
   };
 }
@@ -68,6 +72,7 @@ export function parseBackup(text: string): BackupFile {
     transactions: b.transactions,
     snapshots: Array.isArray(b.snapshots) ? b.snapshots : [],
     alerts: Array.isArray(b.alerts) ? b.alerts : [],
+    cashflows: Array.isArray(b.cashflows) ? b.cashflows : [],
     settings: b.settings && typeof b.settings === 'object' ? b.settings : {},
   };
 }
@@ -78,6 +83,7 @@ export async function restoreBackup(db: Db, b: BackupFile): Promise<void> {
     { sql: 'DELETE FROM transactions' },
     { sql: 'DELETE FROM assets' },
     { sql: 'DELETE FROM snapshots' },
+    { sql: 'DELETE FROM cashflows' },
     { sql: 'DELETE FROM portfolios' },
     { sql: 'DELETE FROM alerts' },
   ];
@@ -151,6 +157,29 @@ export async function restoreBackup(db: Db, b: BackupFile): Promise<void> {
       ],
     });
   }
+  const portfolioIds = new Set(b.portfolios.map((p) => p.id));
+  for (const f of b.cashflows) {
+    // Skip broken rows instead of failing the whole import.
+    if (!f || (f.kind !== 'income' && f.kind !== 'expense') || !(f.amount > 0) || !f.date || !f.currency) continue;
+    if (!portfolioIds.has(f.portfolioId)) continue;
+    st.push({
+      sql: `INSERT INTO cashflows (id, portfolio_id, kind, date, amount, currency, category, usd_rate, syp_rate, note, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      params: [
+        f.id,
+        f.portfolioId,
+        f.kind,
+        f.date,
+        f.amount,
+        f.currency,
+        f.category || 'other',
+        f.usdRate > 0 ? f.usdRate : 1,
+        f.sypRate ?? null,
+        f.note ?? '',
+        f.createdAt || new Date().toISOString(),
+      ],
+    });
+  }
   for (const s of b.snapshots) st.push(snapshotUpsert(s));
   for (const [key, value] of Object.entries(b.settings)) {
     if (key in DEFAULT_SETTINGS && key !== 'lastBackupDate') {
@@ -213,4 +242,36 @@ export function transactionsCsv(data: { portfolios: Portfolio[]; assets: Asset[]
         .join(',');
     });
   return '﻿' + [header.join(','), ...rows].join('\r\n') + '\r\n';
+}
+
+/** Income & expenses as CSV, oldest first, with USD/SYP values at each day's rate. */
+export function cashflowsCsv(
+  data: { portfolios: Portfolio[]; cashflows: CashFlow[] },
+  portfolioLabel: (p: Portfolio) => string,
+  categoryLabel: (f: CashFlow) => string = (f) => f.category,
+): string {
+  const header = ['date', 'portfolio', 'kind', 'category', 'amount', 'currency', 'usd_rate', 'syp_rate', 'amount_usd', 'amount_syp', 'note'];
+  const portfolios = new Map(data.portfolios.map((p) => [p.id, p]));
+  const round = (v: number | null, d: number) => (v == null ? '' : Math.round(v * 10 ** d) / 10 ** d);
+  const rows = [...data.cashflows]
+    .sort((a, b) => (a.date === b.date ? a.id - b.id : a.date < b.date ? -1 : 1))
+    .map((f) => {
+      const p = portfolios.get(f.portfolioId);
+      return [
+        f.date,
+        p ? portfolioLabel(p) : '',
+        f.kind,
+        categoryLabel(f),
+        f.amount,
+        f.currency,
+        f.usdRate,
+        f.sypRate ?? '',
+        round(flowUsd(f), 2),
+        round(flowSyp(f), 0),
+        f.note,
+      ]
+        .map(csvCell)
+        .join(',');
+    });
+  return '\ufeff' + [header.join(','), ...rows].join('\r\n') + '\r\n';
 }

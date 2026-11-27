@@ -114,3 +114,31 @@ export interface Alert {
 }
 
 export type NewAlert = Pick<Alert, 'target' | 'condition' | 'value' | 'repeat' | 'note'>;
+
+export type FlowKind = 'income' | 'expense';
+
+/**
+ * One income or expense entry (salary, rent, groceries…). Like a buy/sell, it keeps the
+ * exchange rates of its own day, so monthly totals stay honest when the pound moves.
+ */
+export interface CashFlow {
+  id: number;
+  portfolioId: number;
+  kind: FlowKind;
+  /** YYYY-MM-DD */
+  date: string;
+  /** Always more than 0, in `currency`. */
+  amount: number;
+  /** Always a current code; old Syrian pounds are converted to new ones (÷100) on entry. */
+  currency: string;
+  /** A built-in category key ("salary", "food"…) or the user's own text. */
+  category: string;
+  /** Units of `currency` per 1 USD on that date (1 for USD). */
+  usdRate: number;
+  /** Syrian pounds (new) per 1 USD on that date, if known. */
+  sypRate: number | null;
+  note: string;
+  createdAt: string;
+}
+
+export type NewCashFlow = Omit<CashFlow, 'id' | 'createdAt'>;

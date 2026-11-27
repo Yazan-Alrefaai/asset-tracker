@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Alert, Asset, Portfolio, Quote, Snapshot, Tx } from '../lib/model';
+import type { Alert, Asset, CashFlow, Portfolio, Quote, Snapshot, Tx } from '../lib/model';
 import type { SpCity } from '../lib/prices/sptoday';
 import { DEFAULT_SETTINGS, initialLanguage, readUiCache, type Settings } from '../lib/settings';
 
@@ -29,6 +29,7 @@ export interface AppState {
   txs: Tx[];
   snapshots: Snapshot[];
   alerts: Alert[];
+  cashflows: CashFlow[];
   quotes: Record<string, Quote>;
   status: Record<PriceGroup, GroupStatus>;
   spCities: SpCity[];
@@ -53,6 +54,7 @@ export const useStore = create<AppState>(() => ({
   txs: [],
   snapshots: [],
   alerts: [],
+  cashflows: [],
   quotes: {},
   status: { metals: idle(), syp: idle(), crypto: idle(), stocks: idle(), fx: idle() },
   spCities: [],

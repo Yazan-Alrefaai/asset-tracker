@@ -90,6 +90,24 @@ export const MIGRATIONS: string[][] = [
       created_at TEXT NOT NULL DEFAULT ${NOW}
     )`,
   ],
+  // v3 (app 0.3): income & expenses
+  [
+    `CREATE TABLE cashflows (
+      id INTEGER PRIMARY KEY,
+      portfolio_id INTEGER NOT NULL REFERENCES portfolios(id) ON DELETE CASCADE,
+      kind TEXT NOT NULL CHECK (kind IN ('income','expense')),
+      date TEXT NOT NULL,
+      amount REAL NOT NULL CHECK (amount > 0),
+      currency TEXT NOT NULL,
+      category TEXT NOT NULL DEFAULT 'other',
+      usd_rate REAL NOT NULL DEFAULT 1 CHECK (usd_rate > 0),
+      syp_rate REAL,
+      note TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT ${NOW}
+    )`,
+    `CREATE INDEX idx_cashflows_date ON cashflows(date)`,
+    `CREATE INDEX idx_cashflows_portfolio ON cashflows(portfolio_id, date)`,
+  ],
 ];
 
 export async function migrate(db: Db): Promise<number> {
