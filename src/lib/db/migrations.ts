@@ -121,6 +121,13 @@ export const MIGRATIONS: string[][] = [
       created_at TEXT NOT NULL DEFAULT ${NOW}
     )`,
   ],
+  // v5 (app 0.3): SYP cost and realized profit per daily snapshot, so gains over time leave out
+  // money added or taken out, and selling does not look like a loss.
+  [
+    `ALTER TABLE snapshots ADD COLUMN cost_syp REAL`,
+    `ALTER TABLE snapshots ADD COLUMN realized_usd REAL`,
+    `ALTER TABLE snapshots ADD COLUMN realized_syp REAL`,
+  ],
 ];
 
 export async function migrate(db: Db): Promise<number> {

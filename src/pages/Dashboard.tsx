@@ -1,15 +1,16 @@
-import { ChevronRight, PictureInPicture2, Plus, TriangleAlert, Wallet } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, ChevronRight, PictureInPicture2, Plus, TriangleAlert, Wallet } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { AllocationBar } from '../components/AllocationBar';
 import { AssetForm } from '../components/AssetForm';
 import { AssetIcon } from '../components/AssetIcon';
 import { assetDetails, unitLabel } from '../components/assetText';
-import { HistoryChart, type HistoryPoint } from '../components/HistoryChart';
+import { HistoryChart } from '../components/HistoryChart';
 import { PageHeader, PrivacyToggle, useTicker } from '../components/Layout';
 import { Dual, Pnl, useFmt } from '../components/Money';
-import { Badge, Button, Card, EmptyState, IconButton, Select, cx } from '../components/ui';
+import { Badge, Button, Card, EmptyState, IconButton, Segmented, Select, cx } from '../components/ui';
 import { openWidget } from '../state/widgets';
 import { useT } from '../i18n';
+import { type Change, dayBefore, perfSeries, RANGES, type Range, rangeView, todayChange } from '../lib/calc/performance';
 import { summarize, type Holding } from '../lib/calc/portfolio';
 import { filterFlows, monthOf, summarizeFlows } from '../lib/cashflow';
 import { todayLocal } from '../lib/dates';
@@ -71,6 +72,24 @@ function MonthStrip() {
       </span>
       <ChevronRight className="ms-auto h-4 w-4 text-muted rtl:rotate-180" aria-hidden />
     </a>
+  );
+}
+
+/** A gain or loss: arrow, sign and colour (never colour alone), with an optional second currency. */
+function GainLine({ main, mainCur, other, otherCur }: { main: Change; mainCur: string; other?: Change | null; otherCur?: string }) {
+  const f = useFmt();
+  const up = main.amount > 0;
+  const down = main.amount < 0;
+  const Icon = up ? ArrowUpRight : ArrowDownRight;
+  return (
+    <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-0.5">
+      <span className={cx('tnum inline-flex items-center gap-1 font-semibold', up ? 'text-pos' : down ? 'text-neg' : 'text-ink-2')}>
+        {(up || down) && <Icon className="h-4 w-4" aria-hidden />}
+        {f.money(main.amount, mainCur, { sign: true })}
+        {main.pct != null && <span className="text-xs font-medium">({f.pct(main.pct)})</span>}
+      </span>
+      {other && otherCur && <span className="tnum text-xs text-muted">{f.money(other.amount, otherCur, { sign: true })}</span>}
+    </span>
   );
 }
 
@@ -150,14 +169,28 @@ export function Dashboard() {
     [holdings],
   );
 
-  const historyCurrency = f.main === 'SYP' && summary.valueSyp != null ? 'SYP' : 'USD';
-  const points: HistoryPoint[] = useMemo(() => {
-    const pid = filter === 'all' ? 0 : filter;
-    return snapshots
-      .filter((s) => s.portfolioId === pid)
-      .map((s) => ({ date: s.date, value: historyCurrency === 'SYP' ? s.valueSyp : s.valueUsd }))
-      .filter((p): p is HistoryPoint => p.value != null);
-  }, [snapshots, filter, historyCurrency]);
+  // Daily history (the app saves one point per day) and gains that leave out money added or taken out.
+  const today = todayLocal();
+  const pid = filter === 'all' ? 0 : filter;
+  const [range, setRange] = useState<Range>('1M');
+  const [chartCurrency, setChartCurrency] = useState<'USD' | 'SYP'>(f.main);
+  const usdPoints = useMemo(() => perfSeries(snapshots, pid, 'USD'), [snapshots, pid]);
+  const sypPoints = useMemo(() => perfSeries(snapshots, pid, 'SYP'), [snapshots, pid]);
+  const hasSyp = sypPoints.length > 0;
+  const cur = chartCurrency === 'SYP' && hasSyp ? 'SYP' : 'USD';
+  const view = rangeView(cur === 'SYP' ? sypPoints : usdPoints, range, today);
+  const points = view.shown.map((p) => ({ date: p.date, value: p.value }));
+
+  const complete = summary.openCount > 0 && summary.missing === 0;
+  const todayUsd = complete
+    ? todayChange(usdPoints, { date: today, value: summary.valueUsd, invested: summary.costUsd - summary.realizedUsd }, today)
+    : null;
+  const todaySyp =
+    complete && summary.valueSyp != null && summary.costSyp != null
+      ? todayChange(sypPoints, { date: today, value: summary.valueSyp, invested: summary.costSyp - (summary.realizedSyp ?? 0) }, today)
+      : null;
+  const todayMain = f.main === 'SYP' && todaySyp ? todaySyp : todayUsd;
+  const todayLabel = todayMain && todayMain.from === dayBefore(today) ? t.dashboard.today : todayMain ? t.dashboard.sinceDay(f.date(todayMain.from)) : '';
 
   const header = (
     <PageHeader title={t.dashboard.title}>
@@ -212,6 +245,17 @@ export function Dashboard() {
             </IconButton>
           </div>
           <Dual usd={summary.valueUsd} syp={summary.valueSyp} size="hero" className="mt-2" />
+          {todayMain && (
+            <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+              <span className="text-ink-2">{todayLabel}</span>
+              <GainLine
+                main={todayMain}
+                mainCur={todayMain === todaySyp ? 'SYP' : 'USD'}
+                other={todayMain === todaySyp ? todayUsd : todaySyp}
+                otherCur={todayMain === todaySyp ? 'USD' : 'SYP'}
+              />
+            </div>
+          )}
           {summary.missing > 0 && (
             <p className="mt-3 inline-flex items-center gap-1.5 text-xs text-warn">
               <TriangleAlert className="h-3.5 w-3.5" />
@@ -240,8 +284,36 @@ export function Dashboard() {
         <Card title={t.dashboard.allocation} className="col-span-2">
           <AllocationBar slices={summary.slices} market={m} />
         </Card>
-        <Card title={`${t.dashboard.history} (${historyCurrency})`} className="col-span-3">
-          <HistoryChart points={points} currency={historyCurrency} />
+        <Card
+          title={t.dashboard.performance}
+          subtitle={
+            view.change ? (
+              <span className="inline-flex flex-wrap items-center gap-x-2">
+                <GainLine main={view.change} mainCur={cur} />
+                <span>{t.dashboard.sinceDay(f.date(view.change.from))}</span>
+              </span>
+            ) : undefined
+          }
+          actions={
+            hasSyp ? (
+              <Segmented
+                size="sm"
+                value={cur}
+                onChange={setChartCurrency}
+                options={[
+                  { value: 'USD', label: 'USD' },
+                  { value: 'SYP', label: 'SYP' },
+                ]}
+              />
+            ) : undefined
+          }
+          className="col-span-3"
+        >
+          <HistoryChart points={points} currency={cur} emptyText={usdPoints.length >= 2 ? t.dashboard.historyRangeEmpty : undefined} />
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+            <Segmented size="sm" value={range} onChange={setRange} options={RANGES.map((r) => ({ value: r, label: t.dashboard.ranges[r] }))} />
+            <span className="text-xs text-muted">{t.dashboard.gainNote}</span>
+          </div>
         </Card>
       </div>
 

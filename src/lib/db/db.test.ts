@@ -343,6 +343,27 @@ describe('database', () => {
     expect((await repo.loadAll(old)).notices).toEqual([]);
   });
 
+  it('upgrades a version-4 database and saves SYP cost and profit taken in daily snapshots', async () => {
+    const SQL = await initSqlJs();
+    const raw = new SQL.Database();
+    raw.run('PRAGMA foreign_keys = ON');
+    const old = createSqlJsDb(raw);
+    await old.batch([...MIGRATIONS.slice(0, 4).flat().map((sql) => ({ sql })), { sql: 'PRAGMA user_version = 4' }]);
+    await old.execute(`INSERT INTO snapshots (date, portfolio_id, value_usd, cost_usd, value_syp) VALUES ('2026-11-01', 0, 100, 90, 15000)`);
+    await migrate(old);
+    let [s] = (await repo.loadAll(old)).snapshots;
+    expect(s).toEqual({ date: '2026-11-01', portfolioId: 0, valueUsd: 100, costUsd: 90, valueSyp: 15000, costSyp: null, realizedUsd: null, realizedSyp: null });
+
+    await repo.upsertSnapshots(old, [{ ...s, costSyp: 13_500, realizedUsd: 5, realizedSyp: 750 }]);
+    [s] = (await repo.loadAll(old)).snapshots;
+    expect(s).toMatchObject({ costSyp: 13_500, realizedUsd: 5, realizedSyp: 750 });
+
+    // A snapshot from an older backup file has none of the new fields.
+    const fromOldBackup = { date: '2026-11-02', portfolioId: 0, valueUsd: 1, costUsd: 1, valueSyp: null } as never;
+    await old.batch([repo.snapshotUpsert(fromOldBackup)]);
+    expect((await repo.loadAll(old)).snapshots[1]).toMatchObject({ costSyp: null, realizedUsd: null, realizedSyp: null });
+  });
+
   it('keeps only the newest notifications', async () => {
     for (let i = 1; i <= repo.NOTICE_LIMIT + 5; i++) {
       await repo.insertNotice(db, { kind: 'price', title: `n${i}`, body: '', refId: null, data: null });
