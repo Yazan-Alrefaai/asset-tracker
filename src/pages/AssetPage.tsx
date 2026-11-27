@@ -8,10 +8,10 @@ import { assetDetails, unitLabel } from '../components/assetText';
 import { PrivacyToggle } from '../components/Layout';
 import { Dual, Pnl, useFmt } from '../components/Money';
 import { TxForm } from '../components/TxForm';
-import { Badge, Button, Card, ConfirmModal, EmptyState, IconButton } from '../components/ui';
+import { Badge, Button, Card, ConfirmModal, EmptyState, IconButton, cx } from '../components/ui';
 import { useT } from '../i18n';
 import { karatLabel } from '../lib/catalog';
-import { computeHolding, sortTxs } from '../lib/calc/portfolio';
+import { computeHolding, sortTxs, txOutcomes, vsAverageCost } from '../lib/calc/portfolio';
 import type { Tx, TxKind } from '../lib/model';
 import { removeAsset, removeTx } from '../state/actions';
 import { portfolioName, useMarket } from '../state/derived';
@@ -57,9 +57,12 @@ export function AssetPage({ id, action }: { id: number; action?: 'buy' }) {
   }
 
   const h = computeHolding(asset, txs, m);
+  const outcomes = txOutcomes(asset, txs, m);
+  const vsAvg = vsAverageCost(h);
   const unit = unitLabel(asset, t);
   const portfolio = portfolios.find((p) => p.id === asset.portfolioId);
   const sypFirst = f.main === 'SYP';
+  const vsAvgSyp = sypFirst && vsAvg.pnlSyp != null;
   const perUnit = (usd: number | null, syp: number | null, priv: boolean) =>
     sypFirst && syp != null
       ? priv
@@ -181,6 +184,15 @@ export function AssetPage({ id, action }: { id: number; action?: 'buy' }) {
         </span>
         <Badge tone={h.unit.basis === 'none' ? 'warn' : h.unit.basis === 'manual' ? 'accent' : 'neutral'}>{t.basis[h.unit.basis]}</Badge>
         {q && h.unit.basis !== 'manual' && <span>{t.common.updated(f.ago(q.asOf ?? q.fetchedAt))}</span>}
+        {h.quantity > 0 && vsAvg.pnlUsd != null && (
+          <span>
+            ·{' '}
+            <span className={cx('tnum font-medium', vsAvg.pnlUsd > 0 ? 'text-pos' : vsAvg.pnlUsd < 0 ? 'text-neg' : 'text-ink-2')}>
+              {f.money(vsAvgSyp ? vsAvg.pnlSyp : vsAvg.pnlUsd, vsAvgSyp ? 'SYP' : 'USD', { sign: true })}
+            </span>{' '}
+            / {unit} {t.asset.vsAvgCost} ({f.pct(vsAvgSyp ? vsAvg.pctSyp : vsAvg.pctUsd)})
+          </span>
+        )}
         {h.quantity > 0 && h.realizedUsd !== 0 && (
           <span>
             · {t.asset.realized}: <span className="tnum">{f.money(sypFirst && h.realizedSyp != null ? h.realizedSyp : h.realizedUsd, sypFirst && h.realizedSyp != null ? 'SYP' : 'USD', { sign: true })}</span>
@@ -200,7 +212,7 @@ export function AssetPage({ id, action }: { id: number; action?: 'buy' }) {
           />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-sm">
+            <table className="w-full min-w-[900px] text-sm">
               <thead>
                 <tr className="text-xs text-muted">
                   <th className="pb-2 pe-3 ps-5 text-start font-medium">{t.asset.colDate}</th>
@@ -210,6 +222,9 @@ export function AssetPage({ id, action }: { id: number; action?: 'buy' }) {
                   <th className="px-3 pb-2 text-end font-medium">{t.asset.colFees}</th>
                   <th className="px-3 pb-2 text-end font-medium">{t.asset.colTotal}</th>
                   <th className="px-3 pb-2 text-end font-medium">{t.asset.colRate}</th>
+                  <th className="px-3 pb-2 text-end font-medium" title={t.asset.pnlHint}>
+                    {t.asset.colPnl}
+                  </th>
                   <th className="pb-2 pe-5 ps-3" />
                 </tr>
               </thead>
@@ -217,6 +232,7 @@ export function AssetPage({ id, action }: { id: number; action?: 'buy' }) {
                 {sorted.map((x) => {
                   const gross = x.quantity * x.price;
                   const total = x.kind === 'buy' ? gross + x.fees : gross - x.fees;
+                  const o = outcomes.get(x.id);
                   return (
                     <tr key={x.id} className="border-t border-line">
                       <td className="tnum py-2.5 pe-3 ps-5 text-ink-2">
@@ -234,6 +250,9 @@ export function AssetPage({ id, action }: { id: number; action?: 'buy' }) {
                         {x.currency !== 'USD' && x.currency !== 'SYP' && <div>{f.num(x.usdRate, 4)} {x.currency}</div>}
                         {x.sypRate != null ? <div>{f.num(x.sypRate, 2, 2)} SYP</div> : x.currency === 'USD' ? '—' : null}
                       </td>
+                      <td className="px-3 py-2.5 text-end">
+                        {o ? <Pnl usd={o.pnlUsd} syp={o.pnlSyp} pctUsd={o.pctUsd} pctSyp={o.pctSyp} size="sm" /> : '—'}
+                      </td>
                       <td className="py-2.5 pe-5 ps-3">
                         <div className="flex justify-end gap-1">
                           <IconButton label={t.common.edit} onClick={() => setTxForm({ kind: x.kind, tx: x })}>
@@ -249,6 +268,7 @@ export function AssetPage({ id, action }: { id: number; action?: 'buy' }) {
                 })}
               </tbody>
             </table>
+            <p className="border-t border-line px-5 py-2.5 text-xs text-muted">{t.asset.pnlHint}</p>
           </div>
         )}
       </Card>

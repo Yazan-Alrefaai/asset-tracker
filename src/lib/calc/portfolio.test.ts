@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Asset, Tx } from '../model';
 import type { Market } from './market';
-import { computeHolding, summarize } from './portfolio';
+import { computeHolding, summarize, txOutcomes, vsAverageCost } from './portfolio';
 import { unitValue } from './valuation';
 
 function market(over: Partial<Market> = {}): Market {
@@ -168,5 +168,73 @@ describe('summary', () => {
     expect(s.slices[0].share).toBeCloseTo(0.7, 6);
     expect(s.pnlUsd).toBeCloseTo(100, 6);
     expect(s.pnlPct).toBeCloseTo(100 / 900, 6);
+  });
+});
+
+describe('profit or loss of each transaction', () => {
+  it('shows a buy against today’s price (the 31 g gold bar example)', () => {
+    // 24K bar, 31 g, paid $4,350 when 1 USD = 153.50 SYP. Today the market pays 17,950 SYP/g and sells USD at 153.50.
+    const m = market({ sypBuy: 153, sypSell: 153.5 });
+    const bar = asset({ type: 'gold', symbol: 'XAU', unit: 'g', unitGrams: 1, purity: 1, form: 'bar' });
+    const buy = tx(bar, { quantity: 31, price: 4350 / 31, currency: 'USD', usdRate: 1, sypRate: 153.5, date: '2026-09-24' });
+    const o = txOutcomes(bar, [buy], m).get(buy.id)!;
+    expect(o.pnlUsd).toBeCloseTo((31 * 17950) / 153.5 - 4350, 6); // ≈ -724.92
+    expect(o.pnlUsd!).toBeCloseTo(-724.92, 2);
+    expect(o.pctUsd!).toBeCloseTo(-0.1666, 4);
+    expect(o.pnlSyp).toBeCloseTo(31 * 17950 - 4350 * 153.5, 6); // -111,275
+    expect(o.pnlSyp).toBe(-111_275);
+
+    // Same numbers per gram: price now vs what you paid per gram.
+    const per = vsAverageCost(computeHolding(bar, [buy], m));
+    expect(per.pnlUsd!).toBeCloseTo(17950 / 153.5 - 4350 / 31, 9); // ≈ -23.38
+    expect(per.pnlUsd!).toBeCloseTo(-23.38, 2);
+    expect(per.pctUsd!).toBeCloseTo(o.pctUsd!, 12);
+    expect(per.pnlSyp!).toBeCloseTo(17950 - (4350 * 153.5) / 31, 9);
+  });
+
+  it('gives each buy its own result and counts fees as cost', () => {
+    const m = market();
+    const spy = asset({ type: 'stock', symbol: 'SPY', unit: 'unit' });
+    const cheap = tx(spy, { quantity: 2, price: 500, fees: 10, date: '2026-01-01' });
+    const dear = tx(spy, { quantity: 1, price: 800, date: '2026-02-01' });
+    const out = txOutcomes(spy, [dear, cheap], m);
+    expect(out.get(cheap.id)).toMatchObject({ pnlUsd: 2 * 700 - 1010 });
+    expect(out.get(cheap.id)!.pctUsd).toBeCloseTo(390 / 1010, 12);
+    expect(out.get(dear.id)).toMatchObject({ pnlUsd: -100, pctUsd: -0.125 });
+    // No SYP rate on those days → no SYP result, but USD still works.
+    expect(out.get(dear.id)!.pnlSyp).toBeNull();
+  });
+
+  it('gives each sell the profit it took, matching the asset total', () => {
+    const m = market();
+    const spy = asset({ type: 'stock', symbol: 'SPY', unit: 'unit' });
+    const list = [
+      tx(spy, { quantity: 10, price: 100, date: '2026-01-01', sypRate: 150 }),
+      tx(spy, { quantity: 10, price: 200, date: '2026-02-01', sypRate: 150 }),
+      tx(spy, { kind: 'sell', quantity: 5, price: 180, fees: 0, date: '2026-03-01', sypRate: 160 }),
+      tx(spy, { kind: 'sell', quantity: 5, price: 120, fees: 0, date: '2026-04-01', sypRate: 160 }),
+    ];
+    const out = txOutcomes(spy, list, m);
+    const [, , sell1, sell2] = list;
+    // average cost 150 → +30 and −30 per share
+    expect(out.get(sell1.id)).toMatchObject({ pnlUsd: 150, pctUsd: 0.2 });
+    expect(out.get(sell2.id)).toMatchObject({ pnlUsd: -150, pctUsd: -0.2 });
+    // SYP uses each day's rate: proceeds at 160, cost at 150
+    expect(out.get(sell1.id)!.pnlSyp).toBeCloseTo(5 * 180 * 160 - 750 * 150, 6);
+    const h = computeHolding(spy, list, m);
+    expect(out.get(sell1.id)!.pnlUsd! + out.get(sell2.id)!.pnlUsd!).toBeCloseTo(h.realizedUsd, 9);
+  });
+
+  it('has no result for a buy without a price today', () => {
+    const coin = asset({ type: 'crypto', symbol: 'not-listed' });
+    const buy = tx(coin, { quantity: 1, price: 5 });
+    expect(txOutcomes(coin, [buy], market()).get(buy.id)).toEqual({ pnlUsd: null, pnlSyp: null, pctUsd: null, pctSyp: null });
+    expect(vsAverageCost(computeHolding(coin, [buy], market())).pnlUsd).toBeNull();
+  });
+
+  it('has no average-cost comparison once everything is sold', () => {
+    const spy = asset({ type: 'stock', symbol: 'SPY', unit: 'unit' });
+    const list = [tx(spy, { quantity: 1, price: 100 }), tx(spy, { kind: 'sell', quantity: 1, price: 120, date: '2026-02-01' })];
+    expect(vsAverageCost(computeHolding(spy, list, market()))).toEqual({ pnlUsd: null, pnlSyp: null, pctUsd: null, pctSyp: null });
   });
 });
