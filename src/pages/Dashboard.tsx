@@ -1,4 +1,4 @@
-import { PictureInPicture2, Plus, TriangleAlert, Wallet } from 'lucide-react';
+import { ChevronRight, PictureInPicture2, Plus, TriangleAlert, Wallet } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { AllocationBar } from '../components/AllocationBar';
 import { AssetForm } from '../components/AssetForm';
@@ -7,10 +7,12 @@ import { assetDetails, unitLabel } from '../components/assetText';
 import { HistoryChart, type HistoryPoint } from '../components/HistoryChart';
 import { PageHeader, PrivacyToggle, useTicker } from '../components/Layout';
 import { Dual, Pnl, useFmt } from '../components/Money';
-import { Badge, Button, Card, EmptyState, IconButton, Select } from '../components/ui';
+import { Badge, Button, Card, EmptyState, IconButton, Select, cx } from '../components/ui';
 import { openWidget } from '../state/widgets';
 import { useT } from '../i18n';
 import { summarize, type Holding } from '../lib/calc/portfolio';
+import { filterFlows, monthOf, summarizeFlows } from '../lib/cashflow';
+import { todayLocal } from '../lib/dates';
 import { portfolioName, useHoldings, useMarket } from '../state/derived';
 import { go } from '../state/router';
 import { useStore } from '../state/store';
@@ -34,6 +36,41 @@ export function PortfolioFilter() {
         </option>
       ))}
     </Select>
+  );
+}
+
+/** One line with this month's income, expenses and net; hidden until something is recorded this month. */
+function MonthStrip() {
+  const t = useT();
+  const f = useFmt();
+  const flows = useStore((s) => s.cashflows);
+  const filter = useStore((s) => s.portfolioFilter);
+  const s = useMemo(
+    () => summarizeFlows(filterFlows(flows, { portfolioId: filter, period: { kind: 'month', key: monthOf(todayLocal()) } })),
+    [flows, filter],
+  );
+  if (s.incomeCount + s.expenseCount === 0) return null;
+  const sypFirst = f.main === 'SYP' && s.netSyp != null;
+  const show = (usd: number, syp: number | null, sign = false) => (sypFirst ? f.money(syp, 'SYP', { sign }) : f.money(usd, 'USD', { sign }));
+  return (
+    <a
+      href="#/cashflow"
+      className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl border border-line bg-surface px-5 py-3 text-sm shadow-card transition hover:bg-surface-2"
+      title={t.cashflow.open}
+    >
+      <span className="font-semibold text-ink">{t.cashflow.thisMonthOnDashboard}</span>
+      <span className="text-ink-2">
+        {t.cashflow.incomeTotal} <span className="tnum font-medium text-ink">{show(s.incomeUsd, s.incomeSyp)}</span>
+      </span>
+      <span className="text-ink-2">
+        {t.cashflow.expenseTotal} <span className="tnum font-medium text-ink">{show(s.expenseUsd, s.expenseSyp)}</span>
+      </span>
+      <span className="text-ink-2">
+        {t.cashflow.net}{' '}
+        <span className={cx('tnum font-medium', s.netUsd > 0 ? 'text-pos' : s.netUsd < 0 ? 'text-neg' : 'text-ink')}>{show(s.netUsd, s.netSyp, true)}</span>
+      </span>
+      <ChevronRight className="ms-auto h-4 w-4 text-muted rtl:rotate-180" aria-hidden />
+    </a>
   );
 }
 
@@ -157,6 +194,7 @@ export function Dashboard() {
             }
           />
         </Card>
+        <MonthStrip />
         {form}
       </>
     );
@@ -195,6 +233,8 @@ export function Dashboard() {
           )}
         </div>
       </div>
+
+      <MonthStrip />
 
       <div className="mt-4 grid grid-cols-5 gap-4">
         <Card title={t.dashboard.allocation} className="col-span-2">

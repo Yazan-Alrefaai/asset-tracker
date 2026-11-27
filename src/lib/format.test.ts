@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { karatLabel } from './catalog';
-import { fmtMoney, parseNum, toInput } from './format';
+import { fmtMoney, fmtMonth, parseNum, toInput } from './format';
 
 describe('parseNum', () => {
   it('reads normal and grouped numbers', () => {
@@ -44,5 +44,17 @@ describe('formatting', () => {
     expect(karatLabel(1)).toBe('24K');
     expect(karatLabel(0.9999)).toBe('24K');
     expect(karatLabel(0.8)).toBeNull();
+  });
+});
+
+describe('fmtMonth', () => {
+  it('names a month in English and Arabic', () => {
+    expect(fmtMonth('2026-11', 'en')).toBe('November 2026');
+    expect(fmtMonth('2026-11', 'en', 'short')).toBe('Nov 26');
+    expect(fmtMonth('2026-01', 'ar')).toContain('2026');
+  });
+
+  it('returns broken keys unchanged', () => {
+    expect(fmtMonth('soon', 'en')).toBe('soon');
   });
 });

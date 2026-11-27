@@ -5,7 +5,8 @@ import { PageHeader } from '../components/Layout';
 import { useFmt } from '../components/Money';
 import { Button, Card, Checkbox, ConfirmModal, Segmented } from '../components/ui';
 import { useT } from '../i18n';
-import { makeBackup, parseBackup, restoreBackup, transactionsCsv } from '../lib/backup';
+import { cashflowsCsv, makeBackup, parseBackup, restoreBackup, transactionsCsv } from '../lib/backup';
+import { categoryLabel } from '../components/flowText';
 import { todayLocal } from '../lib/dates';
 import { getDb } from '../lib/db';
 import { isTauri } from '../lib/platform';
@@ -56,6 +57,16 @@ export function SettingsPage() {
     const st = useStore.getState();
     const csv = transactionsCsv({ portfolios: st.portfolios, assets: st.assets, txs: st.txs }, (p) => portfolioName(p, t));
     if (await saveTextFile(`asset-tracker-transactions-${todayLocal()}.csv`, csv, 'csv')) toast(t.settings.exported);
+  }
+
+  async function exportFlowsCsv() {
+    const st = useStore.getState();
+    const csv = cashflowsCsv(
+      { portfolios: st.portfolios, cashflows: st.cashflows },
+      (p) => portfolioName(p, t),
+      (x) => categoryLabel(x.kind, x.category, t),
+    );
+    if (await saveTextFile(`asset-tracker-income-expenses-${todayLocal()}.csv`, csv, 'csv')) toast(t.settings.exported);
   }
 
   async function chooseImport() {
@@ -227,6 +238,9 @@ export function SettingsPage() {
             </Button>
             <Button icon={<FileSpreadsheet className="h-4 w-4" />} onClick={() => void exportCsv().catch((e) => toast(errorText(e), 'error'))}>
               {t.settings.exportCsv}
+            </Button>
+            <Button icon={<FileSpreadsheet className="h-4 w-4" />} onClick={() => void exportFlowsCsv().catch((e) => toast(errorText(e), 'error'))}>
+              {t.settings.exportFlowsCsv}
             </Button>
             <Button icon={<Upload className="h-4 w-4" />} onClick={() => void chooseImport().catch((e) => toast(errorText(e), 'error'))}>
               {t.settings.importJson}

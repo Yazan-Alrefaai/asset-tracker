@@ -106,6 +106,16 @@ export function fmtShortDate(isoDate: string, lang: Language): string {
   return new Intl.DateTimeFormat(intlLocale(lang), { month: 'short', day: 'numeric' }).format(new Date(y, m - 1, d));
 }
 
+/** "2026-11" → "Nov 2026" (short) or "November 2026" (long). */
+export function fmtMonth(key: string, lang: Language, style: 'short' | 'long' = 'long'): string {
+  const [y, m] = key.split('-').map(Number);
+  if (!y || !m) return key;
+  return new Intl.DateTimeFormat(intlLocale(lang), {
+    month: style === 'long' ? 'long' : 'short',
+    year: style === 'long' ? 'numeric' : '2-digit',
+  }).format(new Date(y, m - 1, 1));
+}
+
 export function fmtAgo(iso: string | null | undefined, lang: Language, now = Date.now()): string {
   if (!iso) return DASH;
   const t = Date.parse(iso);
