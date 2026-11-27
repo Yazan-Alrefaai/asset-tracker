@@ -1,7 +1,7 @@
 import { TriangleAlert } from 'lucide-react';
 import { useEffect } from 'react';
 import { Layout } from './components/Layout';
-import { Spinner } from './components/ui';
+import { Skeleton, Spinner } from './components/ui';
 import { MESSAGES } from './i18n';
 import { AlertsPage } from './pages/AlertsPage';
 import { AssetPage } from './pages/AssetPage';
@@ -42,6 +42,45 @@ function useTheme(): void {
   }, [theme]);
 }
 
+/** First screen while the database opens: the app's own shape, softly loading (no blank flash). */
+function BootScreen({ name, loading }: { name: string; loading: string }) {
+  return (
+    <div className="flex h-full" aria-busy="true">
+      <div className="fixed inset-x-0 top-0 z-10 h-0.5 overflow-hidden" aria-hidden>
+        <div className="animate-progress-indeterminate h-full w-full origin-left bg-accent" />
+      </div>
+      <aside className="flex w-60 shrink-0 flex-col gap-6 border-e border-line bg-surface px-5 py-5">
+        <div className="flex items-center gap-2.5">
+          <img src="/app-icon.svg" alt="" className="animate-breathe h-8 w-8" />
+          <span className="text-[15px] font-semibold text-ink">{name}</span>
+        </div>
+        <div className="space-y-2">
+          {Array.from({ length: 7 }, (_, i) => (
+            <Skeleton key={i} className="h-8 w-full" />
+          ))}
+        </div>
+      </aside>
+      <main className="min-w-0 flex-1 px-8 py-7">
+        <div className="mx-auto max-w-6xl">
+          <Skeleton className="mb-6 h-7 w-48" />
+          <div className="grid grid-cols-4 gap-4">
+            <Skeleton className="col-span-2 h-36 rounded-xl" />
+            <Skeleton className="h-36 rounded-xl" />
+            <Skeleton className="h-36 rounded-xl" />
+          </div>
+          <div className="mt-4 grid grid-cols-5 gap-4">
+            <Skeleton className="col-span-2 h-64 rounded-xl" />
+            <Skeleton className="col-span-3 h-64 rounded-xl" />
+          </div>
+        </div>
+      </main>
+      <span className="sr-only" role="status">
+        {loading}
+      </span>
+    </div>
+  );
+}
+
 export default function App() {
   const ready = useStore((s) => s.ready);
   const bootError = useStore((s) => s.bootError);
@@ -67,6 +106,8 @@ export default function App() {
       </div>
     );
   }
+
+  if (!ready && !IS_WIDGET_WINDOW) return <BootScreen name={t.appName} loading={t.common.loading} />;
 
   if (!ready) {
     return (

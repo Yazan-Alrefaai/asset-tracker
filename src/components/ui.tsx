@@ -139,6 +139,21 @@ export function Badge({ children, tone = 'neutral' }: { children: ReactNode; ton
   return <span className={cx('inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium', tones[tone])}>{children}</span>;
 }
 
+/** Grey placeholder block with a soft moving shine, shown while something loads. */
+export function Skeleton({ className }: { className?: string }) {
+  return (
+    <div
+      aria-hidden
+      className={cx(
+        'relative overflow-hidden rounded-md bg-surface-2',
+        'before:absolute before:inset-0 before:-translate-x-full before:animate-shimmer',
+        'before:bg-gradient-to-r before:from-transparent before:via-white/10 before:to-transparent dark:before:via-white/5',
+        className,
+      )}
+    />
+  );
+}
+
 export function Spinner({ className }: { className?: string }) {
   return <LoaderCircle className={cx('h-4 w-4 animate-spin', className)} />;
 }
@@ -261,6 +276,9 @@ export function Segmented<T extends string | number>({
 
 // ---------- modal ----------
 
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]):not([type=hidden]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 export function Modal({
   open,
   title,
@@ -278,26 +296,62 @@ export function Modal({
 }) {
   const t = useT();
   const panel = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  // Parents pass a new onClose on every render; keep the latest in a ref so the effect below runs
+  // only when the dialog opens. (Re-running it moved the cursor to the first field on every price update.)
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        // Only the top-most dialog closes.
+        const dialogs = document.querySelectorAll('[role=dialog]');
+        if (dialogs[dialogs.length - 1] === panel.current) closeRef.current();
+        return;
+      }
+      if (e.key !== 'Tab' || !panel.current) return;
+      // Keep keyboard focus inside the dialog.
+      const items = [...panel.current.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((el) => el.offsetParent !== null);
+      if (!items.length) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && (document.activeElement === last || !panel.current.contains(document.activeElement))) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
     window.addEventListener('keydown', onKey);
     const first = panel.current?.querySelector<HTMLElement>('input:not([type=hidden]), select, textarea, button[data-autofocus]');
     first?.focus();
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      // Give focus back to whatever opened the dialog.
+      if (opener && document.contains(opener)) opener.focus();
+    };
+  }, [open]);
   if (!open) return null;
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/45 px-4 py-[7vh]" onMouseDown={onClose}>
+    <div
+      className="animate-fade-in fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/45 px-4 py-[7vh] backdrop-blur-[2px]"
+      onMouseDown={() => closeRef.current()}
+    >
       <div
         ref={panel}
         role="dialog"
         aria-modal="true"
+        aria-labelledby={titleId}
         onMouseDown={(e) => e.stopPropagation()}
-        className={cx('w-full rounded-2xl border border-line bg-surface shadow-pop', wide ? 'max-w-2xl' : 'max-w-lg')}
+        className={cx('animate-modal-in w-full rounded-2xl border border-line bg-surface shadow-pop', wide ? 'max-w-2xl' : 'max-w-lg')}
       >
         <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-3.5">
-          <h2 className="text-base font-semibold text-ink">{title}</h2>
+          <h2 id={titleId} className="text-base font-semibold text-ink">
+            {title}
+          </h2>
           <IconButton label={t.common.close} onClick={onClose}>
             <X className="h-4 w-4" />
           </IconButton>
@@ -361,8 +415,9 @@ export function Toaster() {
       {toasts.map((x) => (
         <div
           key={x.id}
+          role={x.kind === 'error' ? 'alert' : 'status'}
           className={cx(
-            'pointer-events-auto max-w-sm rounded-lg border px-4 py-2.5 text-sm shadow-pop',
+            'animate-toast-in pointer-events-auto max-w-sm rounded-lg border px-4 py-2.5 text-sm shadow-pop',
             x.kind === 'error' ? 'border-neg/40 bg-surface text-neg' : 'border-line bg-surface text-ink',
           )}
         >

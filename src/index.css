@@ -98,3 +98,15 @@ input[type='date']::-webkit-calendar-picker-indicator {
 .dark input[type='date']::-webkit-calendar-picker-indicator {
   filter: invert(1);
 }
+
+/* Respect "Reduce motion" (macOS/Windows accessibility setting): no movement, instant changes. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

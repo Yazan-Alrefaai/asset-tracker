@@ -6,10 +6,10 @@ import { useMarket } from '../state/derived';
 import { refreshPrices } from '../state/prices';
 import { go, type Route } from '../state/router';
 import { PRICE_GROUPS, useStore } from '../state/store';
-import { useFmt } from './Money';
-import { Toaster, cx } from './ui';
+import { Flash, useFmt } from './Money';
+import { Skeleton, Toaster, cx } from './ui';
 
-function NavItem({ active, icon, label, href }: { active: boolean; icon: ReactNode; label: string; href: string }) {
+function NavItem({ active, icon, label, href, badge = 0 }: { active: boolean; icon: ReactNode; label: string; href: string; badge?: number }) {
   return (
     <a
       href={href}
@@ -20,7 +20,12 @@ function NavItem({ active, icon, label, href }: { active: boolean; icon: ReactNo
       aria-current={active ? 'page' : undefined}
     >
       <span className={active ? 'text-accent-ink' : 'text-muted'}>{icon}</span>
-      {label}
+      <span className="flex-1">{label}</span>
+      {badge > 0 && (
+        <span className="animate-pop-in tnum min-w-[20px] rounded-full bg-accent px-1.5 text-center text-[11px] font-semibold leading-5 text-on-accent">
+          {badge > 99 ? '99+' : badge}
+        </span>
+      )}
     </a>
   );
 }
@@ -39,21 +44,34 @@ function MiniTicker() {
   const f = useFmt();
   const m = useMarket();
   const quotes = useStore((s) => s.quotes);
-  const rows: [string, string][] = [];
-  if (m.sypBuy != null) rows.push([`USD → SYP`, `${f.num(m.sypBuy, 2, 2)} / ${f.num(m.sypSell, 2, 2)}`]);
-  if (m.localGold['21K']) rows.push([`${t.types.gold} 21K / ${t.units.g}`, f.price(m.localGold['21K'].buy, 'SYP')]);
-  if (m.xau != null) rows.push([`${t.types.gold} / ${t.units.oz}`, f.price(m.xau, 'USD')]);
-  if (m.xag != null) rows.push([`${t.types.silver} / ${t.units.oz}`, f.price(m.xag, 'USD')]);
-  if (m.crypto.bitcoin != null) rows.push(['BTC', f.price(m.crypto.bitcoin, 'USD', { decimals: 0 })]);
-  if (quotes['stock:SPY']) rows.push(['S&P 500 (SPY)', f.price(quotes['stock:SPY'].price, 'USD')]);
-  if (!rows.length) return null;
+  const loading = useStore((s) => PRICE_GROUPS.some((g) => s.status[g].running));
+  const rows: [string, string, number | null][] = [];
+  if (m.sypBuy != null) rows.push([`USD → SYP`, `${f.num(m.sypBuy, 2, 2)} / ${f.num(m.sypSell, 2, 2)}`, m.sypBuy]);
+  if (m.localGold['21K']) rows.push([`${t.types.gold} 21K / ${t.units.g}`, f.price(m.localGold['21K'].buy, 'SYP'), m.localGold['21K'].buy]);
+  if (m.xau != null) rows.push([`${t.types.gold} / ${t.units.oz}`, f.price(m.xau, 'USD'), m.xau]);
+  if (m.xag != null) rows.push([`${t.types.silver} / ${t.units.oz}`, f.price(m.xag, 'USD'), m.xag]);
+  if (m.crypto.bitcoin != null) rows.push(['BTC', f.price(m.crypto.bitcoin, 'USD', { decimals: 0 }), m.crypto.bitcoin]);
+  if (quotes['stock:SPY']) rows.push(['S&P 500 (SPY)', f.price(quotes['stock:SPY'].price, 'USD'), quotes['stock:SPY'].price]);
+  if (!rows.length) {
+    // First start with no saved prices: placeholders while the first prices arrive.
+    return loading ? (
+      <ul className="space-y-2" aria-hidden>
+        {Array.from({ length: 5 }, (_, i) => (
+          <li key={i} className="flex justify-between gap-3">
+            <Skeleton className="h-3 w-20" />
+            <Skeleton className="h-3 w-14" />
+          </li>
+        ))}
+      </ul>
+    ) : null;
+  }
   return (
     <ul className="space-y-1.5 text-xs">
-      {rows.map(([k, v]) => (
+      {rows.map(([k, v, n]) => (
         <li key={k} className="flex items-baseline justify-between gap-2">
           <span className="truncate text-muted">{k}</span>
           <span className="tnum shrink-0 text-ink-2" dir="ltr">
-            {v}
+            <Flash value={n}>{v}</Flash>
           </span>
         </li>
       ))}
@@ -87,6 +105,7 @@ function PriceStatus() {
 
 export function Layout({ route, children }: { route: Route; children: ReactNode }) {
   const t = useT();
+  const unread = useStore((s) => s.notices.reduce((n, x) => n + (x.read ? 0 : 1), 0));
   return (
     <div className="flex h-full">
       <aside className="flex w-60 shrink-0 flex-col border-e border-line bg-surface">
@@ -98,7 +117,7 @@ export function Layout({ route, children }: { route: Route; children: ReactNode 
           <NavItem href="#/" active={route.name === 'dashboard' || route.name === 'asset'} icon={<LayoutDashboard className="h-4 w-4" />} label={t.nav.dashboard} />
           <NavItem href="#/cashflow" active={route.name === 'cashflow'} icon={<Receipt className="h-4 w-4" />} label={t.nav.cashflow} />
           <NavItem href="#/prices" active={route.name === 'prices'} icon={<ChartLine className="h-4 w-4" />} label={t.nav.prices} />
-          <NavItem href="#/alerts" active={route.name === 'alerts'} icon={<Bell className="h-4 w-4" />} label={t.nav.alerts} />
+          <NavItem href="#/alerts" active={route.name === 'alerts'} icon={<Bell className="h-4 w-4" />} label={t.nav.alerts} badge={unread} />
           <NavItem href="#/zakat" active={route.name === 'zakat'} icon={<HandCoins className="h-4 w-4" />} label={t.nav.zakat} />
           <NavItem href="#/portfolios" active={route.name === 'portfolios'} icon={<Wallet className="h-4 w-4" />} label={t.nav.portfolios} />
           <NavItem href="#/settings" active={route.name === 'settings'} icon={<Settings className="h-4 w-4" />} label={t.nav.settings} />
@@ -112,7 +131,10 @@ export function Layout({ route, children }: { route: Route; children: ReactNode 
         </div>
       </aside>
       <main id="main-scroll" className="min-w-0 flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-6xl px-8 py-7">{children}</div>
+        {/* Keyed by page, so each page change plays a short fade-up. */}
+        <div key={route.name === 'asset' ? `asset-${route.id}` : route.name} className="animate-page-in mx-auto max-w-6xl px-8 py-7">
+          {children}
+        </div>
       </main>
       <Toaster />
     </div>
