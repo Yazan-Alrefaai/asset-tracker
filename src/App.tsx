@@ -5,6 +5,7 @@ import { Spinner } from './components/ui';
 import { MESSAGES } from './i18n';
 import { AlertsPage } from './pages/AlertsPage';
 import { AssetPage } from './pages/AssetPage';
+import { CashflowPage } from './pages/CashflowPage';
 import { Dashboard } from './pages/Dashboard';
 import { PortfoliosPage } from './pages/PortfoliosPage';
 import { PricesPage } from './pages/PricesPage';
@@ -82,6 +83,7 @@ export default function App() {
     <Layout route={route}>
       {route.name === 'dashboard' && <Dashboard />}
       {route.name === 'asset' && <AssetPage key={route.id} id={route.id} action={route.action} />}
+      {route.name === 'cashflow' && <CashflowPage />}
       {route.name === 'prices' && <PricesPage />}
       {route.name === 'alerts' && <AlertsPage />}
       {route.name === 'zakat' && <ZakatPage />}

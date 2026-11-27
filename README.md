@@ -16,10 +16,11 @@ Record what you paid, see **live prices**, and see your **profit/loss in US doll
   - Gold by gram, ounce or coin, karats 24/22/21/18/14, with making charge.
   - Your dollars are valued at the rate an exchange office would pay you.
 - **Personal and business portfolios**, shown separately or together.
+- **Income & expenses**: record salary, rent, groceries, bills and your own categories. See monthly income, spending and how much you kept, in USD and SYP at each day's rate, with a 12-month chart and a breakdown by category.
 - **Dashboard**: total value, allocation, value over time, and all holdings.
 - **Your own price** for anything (property, a car, a business share, or the local price of an item).
 - **Arabic and English**, right-to-left layout, dark and light themes, and a "hide numbers" button.
-- **Backups**: an automatic daily copy, JSON export/import, and CSV export for Excel.
+- **Backups**: an automatic daily copy, JSON export/import, and CSV export for Excel (transactions, and income & expenses).
 
 New in 0.2:
 
@@ -103,6 +104,7 @@ MIT. Contributions are welcome.
   - الليرة الجديدة والقديمة: تُحوَّل المبالغ القديمة تلقائياً (÷100).
   - الذهب بالغرام أو الأونصة أو بالقطعة، عيار 24/22/21/18/14، مع أجور الصياغة.
 - **محفظة شخصية ومحفظة للعمل**، كل واحدة وحدها أو معاً.
+- **الدخل والمصاريف**: سجّل الراتب والإيجار ومصروف البيت والفواتير وفئاتك الخاصة، واعرف كم دخل وكم صرفت وكم وفّرت كل شهر بالدولار والليرة حسب سعر كل يوم، مع رسم لآخر 12 شهراً وتوزيع حسب الفئة.
 - **عربي وإنكليزي**، من اليمين لليسار، وضع داكن وفاتح، وزر لإخفاء الأرقام.
 - **نسخ احتياطي**: نسخة تلقائية يومية، وتصدير واستيراد JSON، وتصدير CSV لبرنامج Excel.
 - **جديد في 0.2**:

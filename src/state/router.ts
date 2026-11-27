@@ -4,6 +4,7 @@ import type { WidgetKind } from './widgets';
 export type Route =
   | { name: 'dashboard' }
   | { name: 'asset'; id: number; action?: 'buy' }
+  | { name: 'cashflow' }
   | { name: 'prices' }
   | { name: 'alerts' }
   | { name: 'zakat' }
@@ -19,6 +20,8 @@ export function parseHash(hash: string): Route {
       if (!Number.isInteger(id) || id <= 0) return { name: 'dashboard' };
       return parts[2] === 'buy' ? { name: 'asset', id, action: 'buy' } : { name: 'asset', id };
     }
+    case 'cashflow':
+      return { name: 'cashflow' };
     case 'prices':
       return { name: 'prices' };
     case 'alerts':
