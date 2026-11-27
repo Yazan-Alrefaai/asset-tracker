@@ -27,11 +27,12 @@ function Tip({ active, payload, currency }: TipProps) {
 }
 
 /** Single series → no legend box; the card title names it. 2px line, 10% area wash, hairline grid. */
-export function HistoryChart({ points, currency }: { points: HistoryPoint[]; currency: string }) {
+export function HistoryChart({ points, currency, emptyText }: { points: HistoryPoint[]; currency: string; emptyText?: string }) {
   const t = useT();
   const f = useFmt();
-  if (points.length < 2) return <p className="py-10 text-center text-sm text-muted">{t.dashboard.historyEmpty}</p>;
-  const compact = new Intl.NumberFormat(intlLocale(f.lang), { notation: 'compact', maximumFractionDigits: 1 });
+  if (points.length < 2) return <p className="py-10 text-center text-sm text-muted">{emptyText ?? t.dashboard.historyEmpty}</p>;
+  // 3 significant digits keep neighbouring ticks apart on a narrow range (1.13K, 1.15K… not 1.1K, 1.2K, 1.2K).
+  const compact = new Intl.NumberFormat(intlLocale(f.lang), { notation: 'compact', maximumSignificantDigits: 3 });
   return (
     <div dir="ltr" className="h-60">
       <ResponsiveContainer width="100%" height="100%">

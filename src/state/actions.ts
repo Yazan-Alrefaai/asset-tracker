@@ -248,7 +248,16 @@ export async function recordSnapshots(): Promise<void> {
   for (const [portfolioId, hs] of groups) {
     const s = summarize(hs);
     if (s.openCount === 0 || s.missing > 0) continue;
-    snaps.push({ date, portfolioId, valueUsd: s.valueUsd, costUsd: s.costUsd, valueSyp: s.valueSyp });
+    snaps.push({
+      date,
+      portfolioId,
+      valueUsd: s.valueUsd,
+      costUsd: s.costUsd,
+      valueSyp: s.valueSyp,
+      costSyp: s.costSyp,
+      realizedUsd: s.realizedUsd,
+      realizedSyp: s.realizedSyp,
+    });
   }
   if (!snaps.length) return;
   try {

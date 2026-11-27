@@ -98,6 +98,9 @@ export function toSnapshot(r: Row): Snapshot {
     valueUsd: num(r.value_usd),
     costUsd: num(r.cost_usd),
     valueSyp: numOrNull(r.value_syp),
+    costSyp: numOrNull(r.cost_syp),
+    realizedUsd: numOrNull(r.realized_usd),
+    realizedSyp: numOrNull(r.realized_syp),
   };
 }
 
@@ -449,10 +452,21 @@ export async function setSetting(db: Db, key: string, value: unknown): Promise<v
 
 export function snapshotUpsert(s: Snapshot): Statement {
   return {
-    sql: `INSERT INTO snapshots (date, portfolio_id, value_usd, cost_usd, value_syp) VALUES (?, ?, ?, ?, ?)
+    sql: `INSERT INTO snapshots (date, portfolio_id, value_usd, cost_usd, value_syp, cost_syp, realized_usd, realized_syp)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(date, portfolio_id) DO UPDATE SET value_usd = excluded.value_usd,
-            cost_usd = excluded.cost_usd, value_syp = excluded.value_syp`,
-    params: [s.date, s.portfolioId, s.valueUsd, s.costUsd, s.valueSyp],
+            cost_usd = excluded.cost_usd, value_syp = excluded.value_syp, cost_syp = excluded.cost_syp,
+            realized_usd = excluded.realized_usd, realized_syp = excluded.realized_syp`,
+    params: [
+      s.date,
+      s.portfolioId,
+      s.valueUsd,
+      s.costUsd,
+      s.valueSyp ?? null,
+      s.costSyp ?? null,
+      s.realizedUsd ?? null,
+      s.realizedSyp ?? null,
+    ],
   };
 }
 

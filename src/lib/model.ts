@@ -86,6 +86,11 @@ export interface Snapshot {
   valueUsd: number;
   costUsd: number;
   valueSyp: number | null;
+  /** What was paid for the holdings, in SYP at each purchase day's rate (null in snapshots from before 0.3). */
+  costSyp: number | null;
+  /** Profit already taken by selling, up to that day (null in snapshots from before 0.3). */
+  realizedUsd: number | null;
+  realizedSyp: number | null;
 }
 
 export type NewAsset = Omit<Asset, 'id' | 'createdAt'>;
