@@ -202,6 +202,8 @@ export const ar: Messages = {
     notes: 'ملاحظات',
     total: 'الإجمالي',
     approxUsd: (v: string) => `≈ ${v}`,
+    useLive: (v: string) => `استخدم السعر الحالي: ${v}`,
+    liveHint: 'سعر السوق اليوم. الشراء بسعر مبيع السوق، والبيع بسعر شراء السوق.',
     fetchRate: 'جلب السعر لهذا التاريخ',
   },
   prices: {

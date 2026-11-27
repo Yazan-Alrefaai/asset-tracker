@@ -1,6 +1,6 @@
 import { TROY_OUNCE_GRAMS, karatLabel } from '../catalog';
 import type { Asset } from '../model';
-import { type Market, usdPerUnit, usdToSyp } from './market';
+import { type Market, unitsPerUsdNow, usdPerUnit, usdToSyp } from './market';
 
 export type ValueBasis = 'manual' | 'local' | 'world' | 'live' | 'none';
 
@@ -69,6 +69,51 @@ function cashValue(code: string, m: Market): UnitValue {
   const syp = m.sypPer[code]?.buy ?? usdToSyp(m, usd);
   return usd == null && syp == null ? NONE : { usd, syp, basis: 'live' };
 }
+
+/**
+ * Today's price of ONE unit for a trade, in `currency`, for filling the buy/sell form:
+ * a buy uses the price sellers ask (Syrian market "sell"), a sell uses the price buyers pay ("buy").
+ * Returns null when there is no price yet.
+ */
+export function liveTradePrice(a: Asset, m: Market, side: 'buy' | 'sell', currency: string): number | null {
+  const pick = (q: { buy: number; sell: number }) => (side === 'buy' ? q.sell : q.buy);
+  let base: { cur: string; v: number } | null = null;
+
+  if ((a.type === 'manual' || a.useManualPrice) && a.manualPrice != null) {
+    base = { cur: a.priceCurrency || 'USD', v: a.manualPrice };
+  } else if (a.type === 'gold' && m.metalPricing === 'local') {
+    const purity = a.purity ?? 1;
+    const label = karatLabel(purity);
+    const q = label ? m.localGold[label] : undefined;
+    const k24 = m.localGold['24K'];
+    const perGram = q ? pick(q) : k24 ? pick(k24) * purity : null;
+    if (perGram != null) base = { cur: 'SYP', v: perGram * (a.unitGrams ?? 1) };
+  } else if (a.type === 'cash') {
+    if (a.symbol === currency) return 1;
+    const sp =
+      a.symbol === 'USD'
+        ? m.sypBuy != null
+          ? { buy: m.sypBuy, sell: m.sypSell ?? m.sypBuy }
+          : undefined
+        : m.sypPer[a.symbol];
+    if (currency === 'SYP' && sp) return pick(sp);
+  }
+  if (!base) {
+    const u = unitValue(a, m);
+    base = u.usd != null ? { cur: 'USD', v: u.usd } : u.syp != null ? { cur: 'SYP', v: u.syp } : null;
+  }
+  if (!base) return null;
+  if (base.cur === currency) return base.v;
+
+  // Through US dollars: SYP converts at the market sell rate (as everywhere in the app).
+  const usd = base.cur === 'USD' ? base.v : base.cur === 'SYP' ? (m.sypSell ? base.v / m.sypSell : null) : mulOrNull(base.v, usdPerUnit(m, base.cur));
+  if (usd == null) return null;
+  if (currency === 'USD') return usd;
+  if (currency === 'SYP') return mulOrNull(usd, side === 'buy' ? m.sypSell : m.sypBuy);
+  return mulOrNull(usd, unitsPerUsdNow(m, currency));
+}
+
+const mulOrNull = (a: number, b: number | null | undefined): number | null => (b == null || !(b > 0) ? null : a * b);
 
 /** World (spot) value of one gram of gold/silver at a given fineness, in USD. */
 export function spotPerGram(spotPerOz: number | null, purity: number): number | null {

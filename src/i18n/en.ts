@@ -201,6 +201,8 @@ export const en = {
     total: 'Total',
     approxUsd: (v: string) => `≈ ${v}`,
     fetchRate: 'Get rate for this date',
+    useLive: (v: string) => `Use live price: ${v}`,
+    liveHint: 'Today’s market price. A buy uses the price sellers ask; a sell uses the price buyers pay.',
   },
   prices: {
     title: 'Live prices',
