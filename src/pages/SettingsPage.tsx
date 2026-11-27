@@ -11,12 +11,12 @@ import { todayLocal } from '../lib/dates';
 import { getDb } from '../lib/db';
 import { isTauri } from '../lib/platform';
 import { TRAY_ITEMS, type Language, type Theme } from '../lib/settings';
+import { APP_VERSION } from '../lib/version';
 import { backupNow, reloadData, saveSettings } from '../state/actions';
 import { portfolioName } from '../state/derived';
 import { getDbInfo, openDataFolder, openTextFile, saveTextFile, type DbInfo } from '../state/files';
 import { errorText, toast, useStore } from '../state/store';
 
-const APP_VERSION = '0.2.0';
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
