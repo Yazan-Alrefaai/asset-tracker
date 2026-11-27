@@ -16,6 +16,8 @@ Record what you paid, see **live prices**, and see your **profit/loss in US doll
   - Gold by gram, ounce or coin, karats 24/22/21/18/14, with making charge.
   - Your dollars are valued at the rate an exchange office would pay you.
 - **Personal and business portfolios**, shown separately or together.
+- **Monthly budget**: set a spending limit in USD or SYP and get a warning at 80% and when you go over.
+- **Notification history**: every alert and budget warning is kept, with an unread badge, so nothing is missed.
 - **Income & expenses**: record salary, rent, groceries, bills and your own categories. See monthly income, spending and how much you kept, in USD and SYP at each day's rate, with a 12-month chart and a breakdown by category.
 - **Dashboard**: total value, allocation, value over time, and all holdings.
 - **Your own price** for anything (property, a car, a business share, or the local price of an item).
@@ -104,6 +106,8 @@ MIT. Contributions are welcome.
   - الليرة الجديدة والقديمة: تُحوَّل المبالغ القديمة تلقائياً (÷100).
   - الذهب بالغرام أو الأونصة أو بالقطعة، عيار 24/22/21/18/14، مع أجور الصياغة.
 - **محفظة شخصية ومحفظة للعمل**، كل واحدة وحدها أو معاً.
+- **الميزانية الشهرية**: حدّد سقفاً للمصاريف بالدولار أو الليرة، ويصلك تنبيه عند 80% وعند تجاوزه.
+- **سجل الإشعارات**: تُحفظ كل التنبيهات وتحذيرات الميزانية مع عدّاد لغير المقروء.
 - **الدخل والمصاريف**: سجّل الراتب والإيجار ومصروف البيت والفواتير وفئاتك الخاصة، واعرف كم دخل وكم صرفت وكم وفّرت كل شهر بالدولار والليرة حسب سعر كل يوم، مع رسم لآخر 12 شهراً وتوزيع حسب الفئة.
 - **عربي وإنكليزي**، من اليمين لليسار، وضع داكن وفاتح، وزر لإخفاء الأرقام.
 - **نسخ احتياطي**: نسخة تلقائية يومية، وتصدير واستيراد JSON، وتصدير CSV لبرنامج Excel.

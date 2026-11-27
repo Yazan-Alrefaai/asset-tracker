@@ -115,6 +115,28 @@ export interface Alert {
 
 export type NewAlert = Pick<Alert, 'target' | 'condition' | 'value' | 'repeat' | 'note'>;
 
+export type NoticeKind = 'price' | 'budget';
+
+/** The facts behind a notification, so its text can be shown again in the current language. */
+export type NoticeData =
+  | { type: 'price'; target: string; condition: AlertCondition; line: number; value: number; note: string }
+  | { type: 'budget'; level: 80 | 100; spent: number; limit: number; currency: 'USD' | 'SYP' };
+
+/** Something the app told the user about (a price alert that fired, a budget warning), kept as history. */
+export interface Notice {
+  id: number;
+  kind: NoticeKind;
+  title: string;
+  body: string;
+  /** The alert id for price alerts. */
+  refId: number | null;
+  data: NoticeData | null;
+  read: boolean;
+  createdAt: string;
+}
+
+export type NewNotice = Pick<Notice, 'kind' | 'title' | 'body' | 'refId' | 'data'>;
+
 export type FlowKind = 'income' | 'expense';
 
 /**

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ar } from '../i18n/ar';
 import { en } from '../i18n/en';
-import { alertCurrency, alertMessage, alertTargets, alertValue, evaluateAlerts, REARM_MARGIN, suggestAlertValue } from './alerts';
+import { alertCurrency, alertMessage, alertTargets, alertValue, evaluateAlerts, noticeText, REARM_MARGIN, suggestAlertValue } from './alerts';
 import { alert, market } from './test-fixtures';
 
 const totals = { usd: 2016.34, syp: 308_000 };
@@ -134,5 +134,29 @@ describe('alert messages and targets', () => {
     );
     expect(targets).not.toContain('sygold:22K'); // no market price for 22K in this fixture
     expect(new Set(targets).size).toBe(targets.length);
+  });
+});
+
+describe('saved notification text', () => {
+  const m = market();
+  const priceData = { type: 'price' as const, target: 'metal:XAU', condition: 'above' as const, line: 3700, value: 3712.5, note: 'sell some' };
+
+  it('is shown in the language the app uses now, not the one it was sent in', () => {
+    const n = { title: 'old English title', body: 'old', data: priceData };
+    const inEn = noticeText(n, m, en, 'en');
+    const inAr = noticeText(n, m, ar, 'ar');
+    expect(inEn.title).toBe('Gold (world price, per ounce) is above $3,700.00');
+    expect(inEn.body).toBe('Now $3,712.50 · sell some');
+    expect(inAr.title).toContain('الذهب');
+    expect(inAr.title).not.toBe(inEn.title);
+  });
+
+  it('shows budget warnings from their numbers', () => {
+    const n = { title: 'x', body: 'y', data: { type: 'budget' as const, level: 100 as const, spent: 70, limit: 60, currency: 'USD' as const } };
+    expect(noticeText(n, m, en, 'en')).toEqual({ title: 'You are over your monthly budget', body: 'Spent $70.00 of $60.00 this month.' });
+  });
+
+  it('falls back to the saved text when there are no facts', () => {
+    expect(noticeText({ title: 'Saved', body: 'text', data: null }, m, en, 'en')).toEqual({ title: 'Saved', body: 'text' });
   });
 });

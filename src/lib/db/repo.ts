@@ -9,6 +9,9 @@ import type {
   NewAlert,
   NewAsset,
   NewCashFlow,
+  NewNotice,
+  Notice,
+  NoticeData,
   NewTx,
   Portfolio,
   PortfolioKind,
@@ -130,6 +133,29 @@ export function toCashFlow(r: Row): CashFlow {
   };
 }
 
+function parseNoticeData(v: unknown): NoticeData | null {
+  if (typeof v !== 'string' || !v) return null;
+  try {
+    const d = JSON.parse(v) as NoticeData;
+    return d && (d.type === 'price' || d.type === 'budget') ? d : null;
+  } catch {
+    return null;
+  }
+}
+
+export function toNotice(r: Row): Notice {
+  return {
+    id: num(r.id),
+    kind: str(r.kind) === 'budget' ? 'budget' : 'price',
+    title: str(r.title),
+    body: str(r.body),
+    refId: numOrNull(r.ref_id),
+    data: parseNoticeData(r.data),
+    read: num(r.read) === 1,
+    createdAt: str(r.created_at),
+  };
+}
+
 export interface AllData {
   portfolios: Portfolio[];
   assets: Asset[];
@@ -139,6 +165,7 @@ export interface AllData {
   snapshots: Snapshot[];
   alerts: Alert[];
   cashflows: CashFlow[];
+  notices: Notice[];
 }
 
 export async function loadAll(db: Db): Promise<AllData> {
@@ -150,6 +177,7 @@ export async function loadAll(db: Db): Promise<AllData> {
   const snapshots = await db.select('SELECT * FROM snapshots ORDER BY date');
   const alerts = await db.select('SELECT * FROM alerts ORDER BY id');
   const cashflows = await db.select('SELECT * FROM cashflows ORDER BY date, id');
+  const notices = await loadNoticeRows(db);
   return {
     portfolios: portfolios.map(toPortfolio),
     assets: assets.map(toAsset),
@@ -159,6 +187,7 @@ export async function loadAll(db: Db): Promise<AllData> {
     snapshots: snapshots.map(toSnapshot),
     alerts: alerts.map(toAlert),
     cashflows: cashflows.map(toCashFlow),
+    notices,
   };
 }
 
@@ -352,6 +381,36 @@ export async function updateCashFlow(db: Db, id: number, f: NewCashFlow): Promis
 
 export async function deleteCashFlow(db: Db, id: number): Promise<void> {
   await db.execute('DELETE FROM cashflows WHERE id = ?', [id]);
+}
+
+// ---------- notification history ----------
+
+/** How many notifications are kept (oldest are removed). */
+export const NOTICE_LIMIT = 200;
+
+export async function loadNoticeRows(db: Db): Promise<Notice[]> {
+  const rows = await db.select(`SELECT * FROM notifications ORDER BY id DESC LIMIT ${NOTICE_LIMIT}`);
+  return rows.map(toNotice);
+}
+
+export async function insertNotice(db: Db, n: NewNotice): Promise<void> {
+  await db.batch([
+    {
+      sql: 'INSERT INTO notifications (kind, title, body, ref_id, data) VALUES (?, ?, ?, ?, ?)',
+      params: [n.kind, n.title, n.body, n.refId, n.data ? JSON.stringify(n.data) : null],
+    },
+    {
+      sql: `DELETE FROM notifications WHERE id NOT IN (SELECT id FROM notifications ORDER BY id DESC LIMIT ${NOTICE_LIMIT})`,
+    },
+  ]);
+}
+
+export async function markNoticesRead(db: Db): Promise<void> {
+  await db.execute('UPDATE notifications SET read = 1 WHERE read = 0');
+}
+
+export async function clearNotices(db: Db): Promise<void> {
+  await db.execute('DELETE FROM notifications');
 }
 
 // ---------- quotes, settings, snapshots ----------

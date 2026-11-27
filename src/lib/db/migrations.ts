@@ -108,6 +108,19 @@ export const MIGRATIONS: string[][] = [
     `CREATE INDEX idx_cashflows_date ON cashflows(date)`,
     `CREATE INDEX idx_cashflows_portfolio ON cashflows(portfolio_id, date)`,
   ],
+  // v4 (app 0.3): notification history
+  [
+    `CREATE TABLE notifications (
+      id INTEGER PRIMARY KEY,
+      kind TEXT NOT NULL CHECK (kind IN ('price','budget')),
+      title TEXT NOT NULL,
+      body TEXT NOT NULL DEFAULT '',
+      ref_id INTEGER,
+      data TEXT,
+      read INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT ${NOW}
+    )`,
+  ],
 ];
 
 export async function migrate(db: Db): Promise<number> {

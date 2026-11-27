@@ -7,9 +7,9 @@ import * as repo from '../lib/db/repo';
 import type { NewAlert } from '../lib/model';
 import { serial } from '../lib/serial';
 import { totalsOf } from './derived';
-import { sendSystemNotification } from './notify';
+import { notifyUser } from './notices';
 import { announceChange } from './sync';
-import { toast, useStore } from './store';
+import { useStore } from './store';
 
 let timer: ReturnType<typeof setTimeout> | undefined;
 
@@ -39,8 +39,13 @@ export const checkAlerts = serial(async (): Promise<number> => {
   const t = MESSAGES[st.settings.language];
   for (const f of fired) {
     const msg = alertMessage(f.alert, f.value, m, t, st.settings.language);
-    toast(`${msg.title} — ${msg.body}`, 'ok', 12_000);
-    if (st.settings.notifications) await sendSystemNotification(msg.title, msg.body);
+    await notifyUser({
+      kind: 'price',
+      title: msg.title,
+      body: msg.body,
+      refId: f.alert.id,
+      data: { type: 'price', target: f.alert.target, condition: f.alert.condition, line: f.alert.value, value: f.value, note: f.alert.note },
+    });
   }
   return fired.length;
 });

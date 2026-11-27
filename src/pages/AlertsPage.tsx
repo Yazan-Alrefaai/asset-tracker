@@ -1,14 +1,15 @@
-import { Bell, BellOff, BellRing, Pencil, Plus, Trash2 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { Bell, BellOff, BellRing, CheckCheck, Inbox, Pencil, PiggyBank, Plus, Trash2 } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertForm } from '../components/AlertForm';
 import { PageHeader, useTicker } from '../components/Layout';
 import { useFmt } from '../components/Money';
 import { Badge, Button, Card, ConfirmModal, EmptyState, IconButton, cx } from '../components/ui';
 import { useT } from '../i18n';
-import { alertCurrency, alertTargetLabel, alertValue, fmtAlertValue } from '../lib/alerts';
-import type { Alert } from '../lib/model';
+import { alertCurrency, alertTargetLabel, alertValue, fmtAlertValue, noticeText } from '../lib/alerts';
+import type { Alert, Notice } from '../lib/model';
 import { removeAlert, toggleAlert } from '../state/alerts';
 import { totalsOf, useMarket } from '../state/derived';
+import { clearNoticeHistory, markAllNoticesRead } from '../state/notices';
 import { askNotificationPermission, notificationsAllowed, sendSystemNotification } from '../state/notify';
 import { useStore } from '../state/store';
 
@@ -28,6 +29,98 @@ function Switch({ on, onChange, label }: { on: boolean; onChange: (v: boolean) =
     >
       <span className={cx('inline-block h-4 w-4 rounded-full bg-white shadow transition', on ? 'translate-x-[18px] rtl:-translate-x-[18px]' : 'translate-x-0.5 rtl:-translate-x-0.5')} />
     </button>
+  );
+}
+
+const HISTORY_SHOWN = 50;
+
+function NoticeRow({ n, fresh }: { n: Notice; fresh: boolean }) {
+  const t = useT();
+  const f = useFmt();
+  const m = useMarket();
+  const budget = n.kind === 'budget';
+  const text = noticeText(n, m, t, f.lang);
+  return (
+    <li className={cx('flex items-start gap-3 border-t border-line px-5 py-3 first:border-t-0', fresh && 'bg-accent/5')}>
+      <span
+        className={cx(
+          'mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+          budget ? 'bg-warn/15 text-warn' : 'bg-accent/15 text-accent-ink',
+        )}
+        aria-hidden
+      >
+        {budget ? <PiggyBank className="h-4 w-4" /> : <BellRing className="h-4 w-4" />}
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-medium text-ink">{text.title}</span>
+          {fresh && <span className="h-2 w-2 rounded-full bg-accent" aria-label={t.alerts.unread(1)} />}
+        </div>
+        {text.body && <div className="mt-0.5 text-[13px] text-ink-2">{text.body}</div>}
+      </div>
+      <div className="shrink-0 text-end">
+        <Badge>{budget ? t.alerts.kindBudget : t.alerts.kindPrice}</Badge>
+        <div className="mt-1 text-xs text-muted" title={new Date(n.createdAt).toLocaleString(f.lang === 'ar' ? 'ar-SY' : 'en-US')}>
+          {f.ago(n.createdAt)}
+        </div>
+      </div>
+    </li>
+  );
+}
+
+function NotificationHistory() {
+  const t = useT();
+  const notices = useStore((s) => s.notices);
+  const [confirmClear, setConfirmClear] = useState(false);
+  // Rows that were unread when the page opened stay highlighted for this visit, then everything is marked read.
+  const fresh = useRef<Set<number> | null>(null);
+  fresh.current ??= new Set();
+  for (const n of notices) if (!n.read) fresh.current.add(n.id);
+  const unread = notices.filter((n) => !n.read).length;
+  useEffect(() => {
+    const id = setTimeout(() => void markAllNoticesRead(), 1500);
+    return () => clearTimeout(id);
+  }, [notices.length]);
+
+  return (
+    <Card
+      title={t.alerts.history}
+      subtitle={unread > 0 ? t.alerts.unread(unread) : undefined}
+      className="mt-6"
+      bodyClassName="p-0 pt-2"
+      actions={
+        notices.length > 0 && (
+          <>
+            <Button size="sm" variant="ghost" icon={<CheckCheck className="h-3.5 w-3.5" />} disabled={!unread} onClick={() => void markAllNoticesRead()}>
+              {t.alerts.markAllRead}
+            </Button>
+            <Button size="sm" variant="ghost" icon={<Trash2 className="h-3.5 w-3.5" />} onClick={() => setConfirmClear(true)}>
+              {t.alerts.clearHistory}
+            </Button>
+          </>
+        )
+      }
+    >
+      {notices.length === 0 ? (
+        <div className="flex items-center gap-3 px-5 pb-5 pt-2 text-sm text-muted">
+          <Inbox className="h-5 w-5 shrink-0" />
+          {t.alerts.historyEmpty}
+        </div>
+      ) : (
+        <ul className="pb-1">
+          {notices.slice(0, HISTORY_SHOWN).map((n) => (
+            <NoticeRow key={n.id} n={n} fresh={fresh.current!.has(n.id)} />
+          ))}
+        </ul>
+      )}
+      <ConfirmModal
+        open={confirmClear}
+        message={t.alerts.confirmClear}
+        confirmLabel={t.alerts.clearHistory}
+        onClose={() => setConfirmClear(false)}
+        onConfirm={() => clearNoticeHistory()}
+      />
+    </Card>
   );
 }
 
@@ -85,7 +178,7 @@ export function AlertsPage() {
           />
         </Card>
       ) : (
-        <Card bodyClassName="p-0">
+        <Card title={t.alerts.priceAlerts} bodyClassName="p-0 pt-2">
           <ul>
             {alerts.map((a) => {
               const cur = alertCurrency(a.target, m);
@@ -137,6 +230,8 @@ export function AlertsPage() {
           </Button>
         </div>
       )}
+
+      <NotificationHistory />
 
       {form && <AlertForm alert={form.alert} onClose={() => setForm(null)} />}
       <ConfirmModal

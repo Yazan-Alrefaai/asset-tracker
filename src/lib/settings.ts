@@ -42,6 +42,16 @@ export interface Settings {
   zakatPortfolios: number[] | null;
   /** Zakat: per-asset include/exclude overrides (asset id → include). */
   zakatOverrides: Record<string, boolean>;
+
+  /** Monthly spending limit for income & expenses (null = no budget). */
+  budgetMonthly: number | null;
+  budgetCurrency: 'USD' | 'SYP';
+  /** Portfolio the budget watches (null = all portfolios). */
+  budgetPortfolio: number | null;
+  /** Notify at 80% and 100% of the budget. */
+  budgetAlerts: boolean;
+  /** Last budget warning sent, as "YYYY-MM:80" or "YYYY-MM:100" (so each one is sent once a month). */
+  budgetNotified: string;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -65,6 +75,11 @@ export const DEFAULT_SETTINGS: Settings = {
   zakatDebtsCurrency: 'USD',
   zakatPortfolios: null,
   zakatOverrides: {},
+  budgetMonthly: null,
+  budgetCurrency: 'USD',
+  budgetPortfolio: null,
+  budgetAlerts: true,
+  budgetNotified: '',
 };
 
 export function initialLanguage(): Language {
@@ -98,6 +113,9 @@ export function parseSettings(rows: { key: string; value: string }[]): Settings 
     }
   }
   s.trayItems = s.trayItems.filter((x) => TRAY_ITEMS.includes(x));
+  if (s.budgetCurrency !== 'USD' && s.budgetCurrency !== 'SYP') s.budgetCurrency = 'USD';
+  if (s.budgetMonthly != null && !(typeof s.budgetMonthly === 'number' && s.budgetMonthly > 0)) s.budgetMonthly = null;
+  if (s.budgetPortfolio != null && typeof s.budgetPortfolio !== 'number') s.budgetPortfolio = null;
   return s;
 }
 

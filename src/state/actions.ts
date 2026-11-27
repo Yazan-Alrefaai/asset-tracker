@@ -8,6 +8,7 @@ import type { NewAsset, NewCashFlow, NewTx, Portfolio, Snapshot } from '../lib/m
 import { isTauri } from '../lib/platform';
 import { parseSettings, writeUiCache, type Settings } from '../lib/settings';
 import { scheduleAlertCheck } from './alerts';
+import { checkBudget } from './budget';
 import { groupTxs } from './derived';
 import { refreshPrices, startPriceEngine } from './prices';
 import { errorText, type PriceGroup, useStore } from './store';
@@ -38,6 +39,7 @@ async function loadEverything(): Promise<repo.AllData> {
     snapshots: all.snapshots,
     alerts: all.alerts,
     cashflows: all.cashflows,
+    notices: all.notices,
     quotes: Object.fromEntries(all.quotes.map((q) => [q.key, q])),
   });
   return all;
@@ -63,6 +65,7 @@ async function doBoot(): Promise<void> {
     writeUiCache(settings);
     startPriceEngine(afterPrices);
     scheduleAlertCheck(3000);
+    void checkBudget();
     watchTray();
     void syncKeepInTray(settings.keepInTray);
     void onTrayRefresh(() => refreshPrices());
@@ -107,6 +110,7 @@ export async function reloadData(): Promise<void> {
     snapshots: all.snapshots,
     alerts: all.alerts,
     cashflows: all.cashflows,
+    notices: all.notices,
   });
   scheduleSnapshots();
   scheduleAlertCheck();
@@ -126,6 +130,9 @@ export async function saveSettings(patch: Partial<Settings>): Promise<void> {
   announceChange();
   if ('keepInTray' in patch) void syncKeepInTray(!!patch.keepInTray);
   if ('sypCity' in patch) refreshPrices(['syp']);
+  if ('budgetMonthly' in patch || 'budgetCurrency' in patch || 'budgetPortfolio' in patch || 'budgetAlerts' in patch) {
+    void checkBudget();
+  }
   if ('sypSource' in patch || 'sypManualBuy' in patch || 'metalPricing' in patch) {
     scheduleSnapshots();
     scheduleAlertCheck();
@@ -199,12 +206,14 @@ export async function removeTx(id: number): Promise<void> {
 export async function addCashFlow(f: NewCashFlow): Promise<number> {
   const id = await repo.insertCashFlow(await getDb(), f);
   await reloadData();
+  if (f.kind === 'expense') void checkBudget();
   return id;
 }
 
 export async function editCashFlow(id: number, f: NewCashFlow): Promise<void> {
   await repo.updateCashFlow(await getDb(), id, f);
   await reloadData();
+  void checkBudget();
 }
 
 export async function removeCashFlow(id: number): Promise<void> {
